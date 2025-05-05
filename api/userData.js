@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
             }
         }
 
-        const currencies = ["usdttrc20", "bnb", "btc", "usdtbep20"];
+        const currencies = ["usdt_trx", "bnb", "btc", "usdtbep20"];
         const cryptoAddresses = {};
 
         for (const currency of currencies) {
