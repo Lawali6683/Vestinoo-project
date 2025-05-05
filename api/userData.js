@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
             }
         }
 
-        const currencies = ["usdt_trx", "bnb", "btc", "usdtbep20"];
+       const currencies = ["usdttrc20", "bnb", "btc", "usdtbep20"];       
         const cryptoAddresses = {};
 
         for (const currency of currencies) {
@@ -74,8 +74,11 @@ module.exports = async (req, res) => {
             });
 
             if (!nowPaymentsResponse.ok) {
-                throw new Error(`Failed to create NOWPayments address for ${currency}`);
-            }
+    const errorText = await nowPaymentsResponse.text();
+    console.error(`NOWPayments API error for ${currency}:`, errorText);
+    throw new Error(`Failed to create NOWPayments address for ${currency}. Details: ${errorText}`);
+}
+
 
             const nowPaymentsData = await nowPaymentsResponse.json();
             cryptoAddresses[`${currency}Address`] = nowPaymentsData.address;
