@@ -56,7 +56,8 @@ module.exports = async (req, res) => {
             }
         }
 
-       const currencies = ["usdttrc20", "bnb", "btc", "usdtbep20"];       
+        // Updated currencies array to only include "btc" and "bnb"
+        const currencies = [ "bnb", "btc", "usdtbep20"];
         const cryptoAddresses = {};
 
         for (const currency of currencies) {
@@ -68,17 +69,14 @@ module.exports = async (req, res) => {
                 },
                 body: JSON.stringify({
                     currency,
-                    ipn_callback_url: "https://vestinooproject.vercel.app/api/webhook",
+                    ipn_callback_url: "https://vestinooproject.vercel.app/api/webhook", // Webhook URL
                     order_id: `${email}_${currency}`,
                 }),
             });
 
             if (!nowPaymentsResponse.ok) {
-    const errorText = await nowPaymentsResponse.text();
-    console.error(`NOWPayments API error for ${currency}:`, errorText);
-    throw new Error(`Failed to create NOWPayments address for ${currency}. Details: ${errorText}`);
-}
-
+                throw new Error(`Failed to create NOWPayments address for ${currency}`);
+            }
 
             const nowPaymentsData = await nowPaymentsResponse.json();
             cryptoAddresses[`${currency}Address`] = nowPaymentsData.address;
@@ -99,7 +97,7 @@ module.exports = async (req, res) => {
             userBalance: "$0.00",
             dailyProfit: "$0.00",
             deposit: "$0.00",
-            tsohonUser: "false", 
+            tsohonUser: "false",
             depositTime: null,
             wellecomeBonus: "$0.50",
             referralBonusLeve1: "$0.00",
