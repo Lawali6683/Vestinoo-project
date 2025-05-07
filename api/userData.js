@@ -36,6 +36,7 @@ module.exports = async (req, res) => {
   }
 
   const { fullName, email, username, country, password, referralBy } = req.body;
+
   if (!fullName || !email || !username || !country || !password) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -46,6 +47,8 @@ module.exports = async (req, res) => {
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
     let level2ReferralBy = null;
+    let validReferralBy = null;
+
     if (referralBy) {
       const refUserSnapshot = await db.ref("users")
         .orderByChild("referralCode")
@@ -54,6 +57,7 @@ module.exports = async (req, res) => {
 
       if (refUserSnapshot.exists()) {
         const refUser = Object.values(refUserSnapshot.val())[0];
+        validReferralBy = referralBy;
         level2ReferralBy = refUser.referralBy || null;
       } else {
         return res.status(400).json({ error: "Invalid referral code" });
@@ -69,7 +73,7 @@ module.exports = async (req, res) => {
       country,
       referralLink,
       referralCode,
-      referralBy: referralBy || null,
+      referralBy: validReferralBy,
       level2ReferralBy,
       vestinooID,
       userBalance: 0,
