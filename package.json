@@ -1,18 +1,18 @@
 {
   "name": "Vestinoo",
   "version": "1.0.0",
-  "description": "",
+  "description": "An application using Node.js and Express for webhooks.",
   "main": "index.js",
   "scripts": {
     "start": "node api/webhook.js"
   },
   "dependencies": {
-  "firebase-admin": "^11.10.1",
-  "express": "^4.17.1",
-  "body-parser": "^1.19.0",
-  "crypto": "latest"
+    "firebase-admin": "^11.10.1",
+    "express": "^4.17.1",
+    "body-parser": "^1.19.0",
+    "lru-cache": "^10.1.4" 
   },
   "devDependencies": {},
-  "author": "",
+  "author": "Lawali6683",
   "license": "ISC"
 }
