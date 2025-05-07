@@ -32,14 +32,15 @@ module.exports = async (req, res) => {
 
   const data = req.body;
 
+  // Confirm payment is completed
   if (data.payment_status !== "finished") {
     return res.status(200).json({ message: "Payment not complete" });
   }
 
-  const [email] = data.order_id.split("_");
-  const amount = parseFloat(data.price_amount);
-
   try {
+    const [email] = data.order_id.split("_");
+    const amount = parseFloat(data.price_amount);
+
     const snapshot = await db.ref("users").orderByChild("email").equalTo(email).once("value");
 
     if (!snapshot.exists()) {
@@ -50,35 +51,34 @@ module.exports = async (req, res) => {
     const userRef = db.ref(`users/${userKey}`);
     const userData = snapshot.val()[userKey];
 
-    // Prevent double-processing
+    // Prevent duplicate processing
     const processed = userData.processedPayments || {};
     if (processed[data.payment_id]) {
       return res.status(200).json({ message: "Already processed" });
     }
 
-    // Update processed payments log
+    // Save processed payment
     await userRef.child("processedPayments").update({
       [data.payment_id]: true,
     });
 
-    // Deposit update
+    // Update deposit
     await userRef.update({
-      deposit: `$${amount.toFixed(2)}`,
+      deposit: `$${amount.toFixed(2)}`
     });
 
-    // Find closest matching plan
-    const selectedPlan = [...plans].reverse().find(plan => amount >= plan.amount);
-
+    // Match plan
+    const selectedPlan = plans.find(plan => amount >= plan.amount);
     if (selectedPlan) {
       await userRef.update({
         dailyProfit: `$${selectedPlan.dailyProfit.toFixed(2)}`,
-        depositTime: new Date().toISOString(),
+        depositTime: new Date().toISOString()
       });
     }
 
-    // Handle referral bonuses only if tsohonUser == "false"
+    // REFERRAL BONUS HANDLING
     if (userData.tsohonUser === "false") {
-      // Level 1 Referral
+      // Level 1
       if (userData.referralBy) {
         const refSnap = await db
           .ref("users")
@@ -102,7 +102,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Level 2 Referral
+      // Level 2
       if (userData.level2ReferralBy) {
         const refSnap2 = await db
           .ref("users")
@@ -126,13 +126,13 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Mark user as old
+      // Mark user as "tsohonUser"
       await userRef.update({ tsohonUser: "yes" });
     }
 
     return res.status(200).json({ message: "Processed successfully" });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Webhook error:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
