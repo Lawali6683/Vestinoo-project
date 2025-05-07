@@ -42,6 +42,12 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Check if email already exists using Firebase Admin SDK
+    const existingUser = await admin.auth().getUserByEmail(email).catch(() => null);
+    if (existingUser) {
+      return res.status(400).json({ error: "This email is already in use." });
+    }
+
     const vestinooID = `VTN-${crypto.randomBytes(4).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
