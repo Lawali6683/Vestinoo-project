@@ -1,85 +1,121 @@
-const admin = require("firebase-admin");
 const crypto = require("crypto");
 const fetch = require("node-fetch");
+const admin = require("firebase-admin");
 
-const API_AUTH_KEY = process.env.API_AUTH_KEY;
-const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
-const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK ? JSON.parse(process.env.FIREBASE_DATABASE_SDK) : null;
+// Load environment variables
+const {
+  API_AUTH_KEY,
+  FIREBASE_DATABASE_URL,
+  FIREBASE_SERVICE_ACCOUNT,
+} = process.env;
+
 const NOWPAYMENTS_API_KEY = "REWYBWC-7EZ4BGR-QTQ42WF-9CYE26Y";
 const NOWPAYMENTS_URL = "https://api.nowpayments.io/v1/payment";
+const ALLOWED_ORIGIN = "https://vestinoo.pages.dev";
 
+// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(SERVICE_ACCOUNT),
-        databaseURL: FIREBASE_DATABASE_URL,
-    });
+  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: FIREBASE_DATABASE_URL,
+  });
 }
 
 const db = admin.database();
 
 module.exports = async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
+  // Set CORS Headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-api-key"
+  );
 
-    if (req.method === "OPTIONS") {
-        return res.status(204).end();
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  // Restrict allowed origin
+  const origin = req.headers.origin;
+  if (origin !== ALLOWED_ORIGIN) {
+    return res.status(403).json({ error: "Forbidden origin" });
+  }
+
+  // Authenticate request
+  const clientApiKey = req.headers["x-api-key"];
+  if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Validate body
+  const { email, coin, amount } = req.body || {};
+  if (!email || !coin || !amount || isNaN(amount)) {
+    return res
+      .status(400)
+      .json({ error: "Missing or invalid fields: email, coin, amount" });
+  }
+
+  const orderId = crypto.randomBytes(8).toString("hex");
+
+  const paymentData = {
+    price_amount: parseFloat(amount),
+    price_currency: "usd",
+    pay_currency: coin,
+    ipn_callback_url: "https://vestinooproject.vercel.app/api/webhook",
+    order_id: orderId,
+    order_description: `Payment from ${email} - Order ID: ${orderId}`,
+    is_fixed_rate: true,
+    is_fee_paid_by_user: false,
+  };
+
+  try {
+    const nowResponse = await fetch(NOWPAYMENTS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": NOWPAYMENTS_API_KEY,
+      },
+      body: JSON.stringify(paymentData),
+    });
+
+    const nowResult = await nowResponse.json();
+
+    if (!nowResponse.ok || !nowResult.payment_id) {
+      return res.status(500).json({
+        error: "Failed to create payment with NOWPayments",
+        details: nowResult,
+      });
     }
 
-    const origin = req.headers.origin;
-    if (origin !== "https://vestinoo.pages.dev") {
-        return res.status(403).json({ error: "Forbidden" });
-    }
+    // Store to Firebase
+    const paymentRef = db.ref(`payments/${orderId}`);
+    await paymentRef.set({
+      email,
+      coin,
+      amount: parseFloat(amount),
+      payment_id: nowResult.payment_id,
+      pay_address: nowResult.pay_address,
+      pay_currency: nowResult.pay_currency,
+      status: "waiting",
+      created_at: nowResult.created_at,
+      expiration_estimate_date: nowResult.expiration_estimate_date,
+    });
 
-    const authHeader = req.headers["x-api-key"];
-    if (!authHeader || authHeader !== API_AUTH_KEY) {
-        return res.status(401).json({ error: "Unauthorized request" });
-    }
-
-    const { email, amount, currency } = req.body;
-    if (!email || !amount || !currency) {
-        return res.status(400).json({ error: "Missing required fields." });
-    }
-
-    try {
-        // Create payment request to NOWPayments
-        const paymentPayload = {
-            price_amount: parseFloat(amount),
-            price_currency: "usd",
-            pay_currency: currency.toLowerCase(),
-            ipn_callback_url: "https://vestinooproject.vercel.app/api/webhook",
-            order_id: `vestinoo-${crypto.randomBytes(8).toString("hex")}`,
-            order_description: `User Payment for ${email}`,
-            is_fixed_rate: true,
-            is_fee_paid_by_user: false
-        };
-
-        const npRes = await fetch(NOWPAYMENTS_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-api-key": NOWPAYMENTS_API_KEY
-            },
-            body: JSON.stringify(paymentPayload)
-        });
-
-        const npData = await npRes.json();
-
-        if (!npRes.ok) {
-            console.error("NOWPayments error:", npData);
-            return res.status(500).json({ error: "NOWPayments error", details: npData });
-        }
-
-        const userRef = db.ref(`payments/${email.replace(/\./g, '_')}`);
-        await userRef.set({
-            ...npData,
-            email,
-            expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days in ms
-        });
-
-        return res.status(200).json({ success: true, payment: npData });
-    } catch (err) {
-        console.error("Internal error:", err);
-        return res.status(500).json({ error: "Internal server error" });
-    }
+    // Send response to client
+    return res.status(200).json({
+      success: true,
+      order_id: orderId,
+      payment_id: nowResult.payment_id,
+      pay_address: nowResult.pay_address,
+      pay_currency: nowResult.pay_currency,
+      price_amount: nowResult.price_amount,
+      expiration_estimate_date: nowResult.expiration_estimate_date,
+    });
+  } catch (err) {
+    console.error("NOWPayments error:", err);
+    return res.status(500).json({ error: "Server error", details: err.message });
+  }
 };
