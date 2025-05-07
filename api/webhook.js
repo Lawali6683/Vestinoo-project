@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 
+// Load environment variables
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
@@ -28,7 +29,9 @@ const plans = [
 ];
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).end("Method Not Allowed");
+  if (req.method !== "POST") {
+    return res.status(405).end("Method Not Allowed");
+  }
 
   const data = req.body;
 
@@ -38,10 +41,25 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const [email] = data.order_id.split("_");
+    const orderId = data.order_id || "";
     const amount = parseFloat(data.price_amount);
+    if (!orderId || !data.payment_id || isNaN(amount)) {
+      return res.status(400).json({ error: "Invalid webhook data" });
+    }
 
-    const snapshot = await db.ref("users").orderByChild("email").equalTo(email).once("value");
+    // Extract email from order_id (format must match original API creator)
+    // Make sure email does not contain "_" or change delimiter if needed
+    const email = orderId.includes("_") ? orderId.split("_")[0] : null;
+    if (!email) {
+      return res.status(400).json({ error: "Invalid order_id format" });
+    }
+
+    // Find user by email
+    const snapshot = await db
+      .ref("users")
+      .orderByChild("email")
+      .equalTo(email)
+      .once("value");
 
     if (!snapshot.exists()) {
       return res.status(404).json({ message: "User not found" });
@@ -51,34 +69,34 @@ module.exports = async (req, res) => {
     const userRef = db.ref(`users/${userKey}`);
     const userData = snapshot.val()[userKey];
 
-    // Prevent duplicate processing
+    // Avoid duplicate processing
     const processed = userData.processedPayments || {};
     if (processed[data.payment_id]) {
       return res.status(200).json({ message: "Already processed" });
     }
 
-    // Save processed payment
+    // Mark this payment as processed
     await userRef.child("processedPayments").update({
       [data.payment_id]: true,
     });
 
-    // Update deposit
+    // Update deposit amount
     await userRef.update({
-      deposit: `$${amount.toFixed(2)}`
+      deposit: `$${amount.toFixed(2)}`,
     });
 
-    // Match plan
+    // Match investment plan
     const selectedPlan = plans.find(plan => amount >= plan.amount);
     if (selectedPlan) {
       await userRef.update({
         dailyProfit: `$${selectedPlan.dailyProfit.toFixed(2)}`,
-        depositTime: new Date().toISOString()
+        depositTime: new Date().toISOString(),
       });
     }
 
-    // REFERRAL BONUS HANDLING
-    if (userData.tsohonUser === "false") {
-      // Level 1
+    // === REFERRAL BONUS HANDLING ===
+    if (userData.tsohonUser !== "yes") {
+      // LEVEL 1 REFERRAL
       if (userData.referralBy) {
         const refSnap = await db
           .ref("users")
@@ -92,7 +110,8 @@ module.exports = async (req, res) => {
           const refUserData = refSnap.val()[refKey];
 
           const bonus1 = amount * 0.08;
-          const newBonus1 = parseFloat(refUserData.referralBonusLeve1 || 0) + bonus1;
+          const newBonus1 =
+            parseFloat(refUserData.referralBonusLeve1 || 0) + bonus1;
           const newLevel1 = (parseInt(refUserData.level1 || 0) + 1).toString();
 
           await refUserRef.update({
@@ -102,7 +121,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Level 2
+      // LEVEL 2 REFERRAL
       if (userData.level2ReferralBy) {
         const refSnap2 = await db
           .ref("users")
@@ -115,8 +134,9 @@ module.exports = async (req, res) => {
           const refUserRef2 = db.ref(`users/${refKey2}`);
           const refUserData2 = refSnap2.val()[refKey2];
 
-          const bonus2 = amount * 0.10;
-          const newBonus2 = parseFloat(refUserData2.referralBonussLeve2 || 0) + bonus2;
+          const bonus2 = amount * 0.1;
+          const newBonus2 =
+            parseFloat(refUserData2.referralBonussLeve2 || 0) + bonus2;
           const newLevel2 = (parseInt(refUserData2.level2 || 0) + 1).toString();
 
           await refUserRef2.update({
@@ -126,13 +146,13 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Mark user as "tsohonUser"
+      // Mark user as old
       await userRef.update({ tsohonUser: "yes" });
     }
 
     return res.status(200).json({ message: "Processed successfully" });
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("Webhook processing error:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
