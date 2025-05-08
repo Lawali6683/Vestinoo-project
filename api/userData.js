@@ -21,9 +21,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
-  }
+  if (req.method === "OPTIONS") return res.status(204).end();
 
   const origin = req.headers.origin;
   if (origin !== "https://vestinoo.pages.dev") {
@@ -42,12 +40,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Check if email already exists using Firebase Admin SDK
-    const existingUser = await admin.auth().getUserByEmail(email).catch(() => null);
-    if (existingUser) {
-      return res.status(400).json({ error: "This email is already in use." });
-    }
-
     const vestinooID = `VTN-${crypto.randomBytes(4).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
@@ -102,10 +94,6 @@ module.exports = async (req, res) => {
     };
 
     const userRef = await db.ref(`users`).push(userData);
-
-    const auth = admin.auth();
-    await auth.createUser({ email, password });
-    await auth.generateEmailVerificationLink(email);
 
     return res.status(201).json({
       message: "Registration successful. Please verify your email.",
