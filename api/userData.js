@@ -40,7 +40,9 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const vestinooID = `VTN-${crypto.randomBytes(4).toString("hex")}`;
+    const user = await admin.auth().getUserByEmail(email);
+
+    const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
@@ -93,11 +95,11 @@ module.exports = async (req, res) => {
       registerTime: createdAt,
     };
 
-    const userRef = await db.ref(`users`).push(userData);
+    await db.ref(`users/${user.uid}`).set(userData);
 
     return res.status(201).json({
       message: "Registration successful. Please verify your email.",
-      userId: userRef.key,
+      userId: user.uid,
       vestinooID,
     });
   } catch (error) {
