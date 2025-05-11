@@ -1,12 +1,14 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
+// Environment variables
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
     ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
     : null;
 
+// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert(SERVICE_ACCOUNT),
@@ -17,23 +19,28 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 module.exports = async (req, res) => {
+    // Set CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
+    // Handle preflight OPTIONS request
     if (req.method === "OPTIONS") {
         return res.status(204).end();
     }
 
+    // Authenticate request
     const authHeader = req.headers["x-api-key"];
     if (!authHeader || authHeader !== API_AUTH_KEY) {
         return res.status(401).json({ error: "Unauthorized request" });
     }
 
+    // Ensure only POST requests are allowed
     if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
+    // Parse and validate request body
     const { email, type, value } = req.body;
     if (!email || !type) {
         return res.status(400).json({ error: "Email and type are required" });
@@ -49,6 +56,7 @@ module.exports = async (req, res) => {
 
         const userData = userSnapshot.val();
 
+        // Handle different request types
         switch (type) {
             case "dailyProfit":
                 await handleDailyProfit(userRef, userData);
@@ -68,11 +76,12 @@ module.exports = async (req, res) => {
 
         res.json({ message: `${type} processed successfully.` });
     } catch (error) {
+        console.error("Error processing request:", error);
         res.status(500).json({ error: "Internal server error", details: error.message });
     }
 };
 
-// === HANDLE DAILY MINE ===
+// === Handle Daily Profit ===
 async function handleDailyProfit(userRef, userData) {
     const { dailyProfit, userBalance, deposit, depositTime, duration, lastClearTime = 0 } = userData;
     const now = Date.now();
@@ -104,7 +113,7 @@ async function handleDailyProfit(userRef, userData) {
     });
 }
 
-// === LEVEL BONUS ===
+// === Handle Level Bonus ===
 async function handleLevelBonus(userRef, userData, level) {
     const bonusField = level === 1 ? "referralBonusLeve1" : "referralBonussLeve2";
     const bonusAmount = userData[bonusField];
@@ -120,7 +129,7 @@ async function handleLevelBonus(userRef, userData, level) {
     }
 }
 
-// === WELCOME BONUS ===
+// === Handle Welcome Bonus ===
 async function handleWelcomeBonus(userRef, userData) {
     const { wellecomeBonus, userBalance } = userData;
 
@@ -135,7 +144,7 @@ async function handleWelcomeBonus(userRef, userData) {
     }
 }
 
-// === SELL VESTBIT ===
+// === Handle Sell VestBit ===
 async function handleSellVestBit(userRef, userData) {
     const { vestBit, userBalance } = userData;
 
