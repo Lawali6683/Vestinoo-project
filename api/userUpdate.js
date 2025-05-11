@@ -1,14 +1,12 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
-// Environment variables
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
     ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
     : null;
 
-// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert(SERVICE_ACCOUNT),
@@ -19,93 +17,100 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 module.exports = async (req, res) => {
-    // Set CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
-    // Handle preflight OPTIONS request
-    if (req.method === "OPTIONS") {
-        return res.status(204).end();
-    }
+    if (req.method === "OPTIONS") return res.status(204).end();
 
-    // Authenticate request
     const authHeader = req.headers["x-api-key"];
     if (!authHeader || authHeader !== API_AUTH_KEY) {
         return res.status(401).json({ error: "Unauthorized request" });
     }
 
-    // Ensure only POST requests are allowed
     if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
-    // Parse and validate request body
-    const { email, type, value } = req.body;
+    const { email, type } = req.body;
     if (!email || !type) {
         return res.status(400).json({ error: "Email and type are required" });
     }
 
     try {
-        const userRef = db.ref(`users/${crypto.createHash("md5").update(email).digest("hex")}`);
-        const userSnapshot = await userRef.once("value");
+        const userId = crypto.createHash("md5").update(email).digest("hex");
+        const userRef = db.ref(`users/${userId}`);
+        const snapshot = await userRef.once("value");
 
-        if (!userSnapshot.exists()) {
+        if (!snapshot.exists()) {
             return res.status(404).json({ error: "User not found" });
         }
 
-        const userData = userSnapshot.val();
+        const user = snapshot.val();
 
-        // Handle different request types
         switch (type) {
+            case "expiredPlan":
+                await resetExpiredPlan(userRef);
+                break;
             case "dailyProfit":
-                await handleDailyProfit(userRef, userData);
-                break;
-            case "levelBonus":
-                await handleLevelBonus(userRef, userData, value);
-                break;
-            case "welcomeBonus":
-                await handleWelcomeBonus(userRef, userData);
+                await handleDailyProfit(userRef, user);
                 break;
             case "sellVestBit":
-                await handleSellVestBit(userRef, userData);
+                await handleVestBitReward(userRef, user);
+                break;
+            case "referralBonusLevel1":
+                await handleReferralBonus(userRef, user, 1);
+                break;
+            case "referralBonusLevel2":
+                await handleReferralBonus(userRef, user, 2);
+                break;
+            case "welcomeBonus":
+                await handleWelcomeBonus(userRef, user);
                 break;
             default:
                 return res.status(400).json({ error: "Invalid request type" });
         }
 
-        res.json({ message: `${type} processed successfully.` });
-    } catch (error) {
-        console.error("Error processing request:", error);
-        res.status(500).json({ error: "Internal server error", details: error.message });
+        return res.json({ message: `${type} processed successfully.` });
+    } catch (err) {
+        return res.status(500).json({ error: "Internal server error", details: err.message });
     }
 };
 
-// === Handle Daily Profit ===
-async function handleDailyProfit(userRef, userData) {
-    const { dailyProfit, userBalance, deposit, depositTime, duration, lastClearTime = 0 } = userData;
+// ==== EXPIRED PLAN ====
+async function resetExpiredPlan(userRef) {
+    await userRef.update({
+        deposit: 0,
+        dailyProfit: 0,
+        depositTime: null
+    });
+}
+
+// ==== DAILY PROFIT ====
+async function handleDailyProfit(userRef, user) {
     const now = Date.now();
-    const planExpired = now > depositTime + duration * 24 * 60 * 60 * 1000;
+    const lastClearTime = user.lastClearTime || 0;
+
+    const depositTime = user.depositTime || 0;
+    const duration = user.duration || 0;
+    const planExpired = now > (depositTime + duration * 24 * 60 * 60 * 1000);
 
     if (planExpired) {
-        await userRef.update({
-            deposit: 0,
-            dailyProfit: 0,
-            depositTime: null,
-        });
-        throw new Error("Plan expired and reset successfully.");
+        await resetExpiredPlan(userRef);
+        throw new Error("Plan expired and reset.");
     }
 
-    if (dailyProfit <= 0) {
-        throw new Error("No daily profit available to clear.");
+    if (user.dailyProfit <= 0) {
+        throw new Error("No daily profit available.");
     }
 
-    const hoursElapsed = (now - lastClearTime) / (60 * 60 * 1000);
-    if (hoursElapsed < 24) {
-        throw new Error(`You must wait ${Math.ceil(24 - hoursElapsed)} more hour(s) before clearing again.`);
+    const hoursPassed = (now - lastClearTime) / (60 * 60 * 1000);
+    if (hoursPassed < 24) {
+        throw new Error(`Wait ${Math.ceil(24 - hoursPassed)} more hour(s).`);
     }
 
-    const newBalance = userBalance + dailyProfit;
+    const newBalance = user.userBalance + user.dailyProfit;
+
     await userRef.update({
         userBalance: newBalance,
         lastClearTime: now,
@@ -113,48 +118,43 @@ async function handleDailyProfit(userRef, userData) {
     });
 }
 
-// === Handle Level Bonus ===
-async function handleLevelBonus(userRef, userData, level) {
-    const bonusField = level === 1 ? "referralBonusLeve1" : "referralBonussLeve2";
-    const bonusAmount = userData[bonusField];
-
-    if (bonusAmount > 0) {
-        const newBalance = userData.userBalance + bonusAmount;
+// ==== SELL VESTBIT ====
+async function handleVestBitReward(userRef, user) {
+    if (user.vestBit >= 1) {
         await userRef.update({
-            userBalance: newBalance,
-            [bonusField]: 0
+            userBalance: user.userBalance + 1,
+            vestBit: 0
         });
     } else {
-        throw new Error(`No Level ${level} bonus available.`);
+        throw new Error("VestBit must be at least 1 to convert.");
     }
 }
 
-// === Handle Welcome Bonus ===
-async function handleWelcomeBonus(userRef, userData) {
-    const { wellecomeBonus, userBalance } = userData;
+// ==== REFERRAL BONUS ====
+async function handleReferralBonus(userRef, user, level) {
+    const field = level === 1 ? "referralBonusLeve1" : "referralBonussLeve2";
+    const bonus = user[field] || 0;
 
-    if (wellecomeBonus > 0) {
-        const newBalance = userBalance + wellecomeBonus;
+    if (bonus > 0) {
         await userRef.update({
-            userBalance: newBalance,
+            userBalance: user.userBalance + bonus,
+            [field]: 0
+        });
+    } else {
+        throw new Error(`No referral bonus for level ${level}.`);
+    }
+}
+
+// ==== WELCOME BONUS ====
+async function handleWelcomeBonus(userRef, user) {
+    const bonus = user.wellecomeBonus || 0;
+
+    if (bonus > 0) {
+        await userRef.update({
+            userBalance: user.userBalance + bonus,
             wellecomeBonus: 0
         });
     } else {
         throw new Error("No welcome bonus available.");
-    }
-}
-
-// === Handle Sell VestBit ===
-async function handleSellVestBit(userRef, userData) {
-    const { vestBit, userBalance } = userData;
-
-    if (vestBit >= 1) {
-        const newBalance = userBalance + 1;
-        await userRef.update({
-            userBalance: newBalance,
-            vestBit: 0
-        });
-    } else {
-        throw new Error("Insufficient VestBit for sale.");
     }
 }
