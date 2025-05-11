@@ -39,14 +39,25 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const userRef = db.ref(`users/${email}`);
-    const snapshot = await userRef.once("value");
+    const usersRef = db.ref("users");
+    const snapshot = await usersRef.once("value");
 
-    if (!snapshot.exists()) {
-      return res.status(404).json({ error: "User not found" });
+    let foundUserKey = null;
+    let foundUser = null;
+
+    snapshot.forEach((childSnapshot) => {
+      const user = childSnapshot.val();
+      if (user.email === email) {
+        foundUserKey = childSnapshot.key;
+        foundUser = user;
+      }
+    });
+
+    if (!foundUserKey || !foundUser) {
+      return res.status(404).json({ error: "User with this email not found" });
     }
 
-    const user = snapshot.val();
+    const userRef = db.ref(`users/${foundUserKey}`);
 
     switch (type) {
       case "expiredPlan":
@@ -54,23 +65,23 @@ module.exports = async (req, res) => {
         break;
 
       case "dailyProfit":
-        await handleDailyProfit(userRef, user);
+        await handleDailyProfit(userRef, foundUser);
         break;
 
       case "sellVestBit":
-        await handleVestBitReward(userRef, user);
+        await handleVestBitReward(userRef, foundUser);
         break;
 
       case "referralBonusLevel1":
-        await handleReferralBonus(userRef, user, 1);
+        await handleReferralBonus(userRef, foundUser, 1);
         break;
 
       case "referralBonusLevel2":
-        await handleReferralBonus(userRef, user, 2);
+        await handleReferralBonus(userRef, foundUser, 2);
         break;
 
       case "welcomeBonus":
-        await handleWelcomeBonus(userRef, user);
+        await handleWelcomeBonus(userRef, foundUser);
         break;
 
       default:
