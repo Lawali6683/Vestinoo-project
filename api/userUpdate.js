@@ -16,8 +16,7 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 module.exports = async (req, res) => {
-  // CORS: allow only from https://vestinoo.pages.dev
-  res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
+   res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
@@ -72,18 +71,6 @@ module.exports = async (req, res) => {
         await handleVestBitReward(userRef, foundUser);
         break;
 
-      case "referralBonusLevel1":
-        await handleReferralBonus(userRef, foundUser, 1);
-        break;
-
-      case "referralBonusLevel2":
-        await handleReferralBonus(userRef, foundUser, 2);
-        break;
-
-      case "welcomeBonus":
-        await handleWelcomeBonus(userRef, foundUser);
-        break;
-
       default:
         return res.status(400).json({ error: "Invalid request type" });
     }
@@ -135,34 +122,5 @@ async function handleVestBitReward(userRef, user) {
     });
   } else {
     throw new Error("VestBit must be at least 1 to convert.");
-  }
-}
-
-// REFERRAL BONUS
-async function handleReferralBonus(userRef, user, level) {
-  const field = level === 1 ? "referralBonusLeve1" : "referralBonussLeve2";
-  const bonus = user[field] || 0;
-
-  if (bonus > 0) {
-    await userRef.update({
-      userBalance: user.userBalance + bonus,
-      [field]: 0
-    });
-  } else {
-    throw new Error(`No referral bonus for level ${level}.`);
-  }
-}
-
-// WELCOME BONUS
-async function handleWelcomeBonus(userRef, user) {
-  const bonus = user.wellecomeBonus || 0;
-
-  if (bonus > 0) {
-    await userRef.update({
-      userBalance: user.userBalance + bonus,
-      wellecomeBonus: 0
-    });
-  } else {
-    throw new Error("No welcome bonus available.");
   }
 }
