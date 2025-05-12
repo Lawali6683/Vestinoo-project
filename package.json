@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "dependencies": {
-    "firebase-admin": "^11.10.1",
-    "crypto": "latest"
+    "firebase-admin": "^11.10.1"
   },
   "devDependencies": {},
   "author": "",
