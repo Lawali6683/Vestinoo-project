@@ -16,13 +16,12 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 module.exports = async (req, res) => {
-   res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
+  res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
   if (req.method === "OPTIONS") return res.status(204).end();
 
-  // API Key authentication
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_AUTH_KEY) {
     return res.status(401).json({ error: "Unauthorized request" });
@@ -41,22 +40,22 @@ module.exports = async (req, res) => {
     const usersRef = db.ref("users");
     const snapshot = await usersRef.once("value");
 
-    let foundUserKey = null;
-    let foundUser = null;
+    let userKey = null;
+    let userData = null;
 
     snapshot.forEach((childSnapshot) => {
-      const user = childSnapshot.val();
-      if (user.email === email) {
-        foundUserKey = childSnapshot.key;
-        foundUser = user;
+      const data = childSnapshot.val();
+      if (data.email && data.email.toLowerCase() === email.toLowerCase()) {
+        userKey = childSnapshot.key;
+        userData = data;
       }
     });
 
-    if (!foundUserKey || !foundUser) {
+    if (!userKey || !userData) {
       return res.status(404).json({ error: "User with this email not found" });
     }
 
-    const userRef = db.ref(`users/${foundUserKey}`);
+    const userRef = db.ref(`users/${userKey}`);
 
     switch (type) {
       case "expiredPlan":
@@ -64,11 +63,11 @@ module.exports = async (req, res) => {
         break;
 
       case "dailyProfit":
-        await handleDailyProfit(userRef, foundUser);
+        await handleDailyProfit(userRef, userData);
         break;
 
       case "sellVestBit":
-        await handleVestBitReward(userRef, foundUser);
+        await handleVestBitReward(userRef, userData);
         break;
 
       default:
@@ -78,6 +77,7 @@ module.exports = async (req, res) => {
     return res.json({ message: `${type} processed successfully.` });
 
   } catch (err) {
+    console.error("Bonus error:", err);
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };
@@ -104,7 +104,8 @@ async function handleDailyProfit(userRef, user) {
     throw new Error(`Wait ${Math.ceil(24 - hoursPassed)} more hour(s).`);
   }
 
-  const newBalance = user.userBalance + user.dailyProfit;
+  const balance = user.userBalance || 0;
+  const newBalance = balance + user.dailyProfit;
 
   await userRef.update({
     userBalance: newBalance,
@@ -116,8 +117,9 @@ async function handleDailyProfit(userRef, user) {
 // VESTBIT BONUS
 async function handleVestBitReward(userRef, user) {
   if (user.vestBit >= 1) {
+    const balance = user.userBalance || 0;
     await userRef.update({
-      userBalance: user.userBalance + 1,
+      userBalance: balance + 1,
       vestBit: 0
     });
   } else {
