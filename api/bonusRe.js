@@ -20,7 +20,6 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
-  // Handling OPTIONS request for CORS
   if (req.method === "OPTIONS") return res.status(204).end();
 
   const authHeader = req.headers["x-api-key"];
@@ -32,47 +31,57 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { email, wellecomeBonus, referralBonusLeve1, referralBonusLeve2 } = req.body;
+  const { email, wellecomeBonus, referralBonusLeve1, referralBonussLeve2 } = req.body;
 
-  if (!email || (wellecomeBonus === undefined && referralBonusLeve1 === undefined && referralBonusLeve2 === undefined)) {
+  if (
+    !email ||
+    (wellecomeBonus === undefined &&
+      referralBonusLeve1 === undefined &&
+      referralBonussLeve2 === undefined)
+  ) {
     return res.status(400).json({ error: "Invalid request data" });
   }
 
-  // Fetch the user data from Firebase
   try {
-    const userRef = db.ref(`users`).orderByChild('email').equalTo(email);
-    const snapshot = await userRef.once('value');
-    
-    if (!snapshot.exists()) {
+    const usersRef = db.ref("users");
+    const snapshot = await usersRef.once("value");
+
+    let userKey = null;
+    let userData = null;
+
+    snapshot.forEach(child => {
+      const data = child.val();
+      if (data.email && data.email.toLowerCase() === email.toLowerCase()) {
+        userKey = child.key;
+        userData = data;
+      }
+    });
+
+    if (!userKey) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const userKey = Object.keys(snapshot.val())[0];
-    const userData = snapshot.val()[userKey];
+    const updates = {};
+    let newBalance = userData.userBalance || 0;
 
-    // Process Wellecome Bonus
-    if (wellecomeBonus > 0) {
-      await db.ref(`users/${userKey}`).update({
-        wellecomeBonus: 0,
-        userBalance: userData.userBalance + 0.50, 
-      });
+    if (wellecomeBonus > 0 && userData.wellecomeBonus > 0) {
+      updates.wellecomeBonus = 0;
+      newBalance += 0.50;
     }
 
-    // Process Referral Bonus Level 1
-    if (referralBonusLeve1 > 0) {
-      await db.ref(`users/${userKey}`).update({
-        referralBonusLeve1: 0, 
-        userBalance: userData.userBalance + referralBonusLeve1, 
-      });
+    if (referralBonusLeve1 > 0 && userData.referralBonusLeve1 > 0) {
+      updates.referralBonusLeve1 = 0;
+      newBalance += referralBonusLeve1;
     }
 
-    // Process Referral Bonus Level 2
-    if (referralBonusLeve2 > 0) {
-      await db.ref(`users/${userKey}`).update({
-        referralBonussLeve2: 0, 
-        userBalance: userData.userBalance + referralBonusLeve2, 
-      });
+    if (referralBonussLeve2 > 0 && userData.referralBonussLeve2 > 0) {
+      updates.referralBonussLeve2 = 0;
+      newBalance += referralBonussLeve2;
     }
+
+    updates.userBalance = newBalance;
+
+    await db.ref(`users/${userKey}`).update(updates);
 
     return res.status(200).json({ message: "Bonus processed successfully" });
 
