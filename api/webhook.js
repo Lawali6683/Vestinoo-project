@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
 
-// Load environment variables
+// Firebase credentials
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
@@ -35,7 +35,6 @@ module.exports = async (req, res) => {
 
   const data = req.body;
 
-  // Confirm payment is completed
   if (data.payment_status !== "finished") {
     return res.status(200).json({ message: "Payment not complete" });
   }
@@ -47,14 +46,13 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: "Invalid webhook data" });
     }
 
-    // Extract email from order_id (format must match original API creator)
-    // Make sure email does not contain "_" or change delimiter if needed
-    const email = orderId.includes("_") ? orderId.split("_")[0] : null;
-    if (!email) {
-      return res.status(400).json({ error: "Invalid order_id format" });
+    // Extract email from orderId
+    const email = orderId.split("_")[0];
+    if (!email.includes("@")) {
+      return res.status(400).json({ error: "Invalid email format in order_id" });
     }
 
-    // Find user by email
+    // Search user by email
     const snapshot = await db
       .ref("users")
       .orderByChild("email")
@@ -69,34 +67,34 @@ module.exports = async (req, res) => {
     const userRef = db.ref(`users/${userKey}`);
     const userData = snapshot.val()[userKey];
 
-    // Avoid duplicate processing
+    // Check for duplicate payment
     const processed = userData.processedPayments || {};
     if (processed[data.payment_id]) {
       return res.status(200).json({ message: "Already processed" });
     }
 
-    // Mark this payment as processed
+    // Mark payment as processed
     await userRef.child("processedPayments").update({
       [data.payment_id]: true,
     });
 
-    // Update deposit amount
+    // Update deposit value (as number not string)
     await userRef.update({
-      deposit: `$${amount.toFixed(2)}`,
+      deposit: amount,
     });
 
-    // Match investment plan
+    // Find suitable investment plan
     const selectedPlan = plans.find(plan => amount >= plan.amount);
     if (selectedPlan) {
       await userRef.update({
-        dailyProfit: `$${selectedPlan.dailyProfit.toFixed(2)}`,
+        dailyProfit: selectedPlan.dailyProfit,
         depositTime: new Date().toISOString(),
       });
     }
 
-    // === REFERRAL BONUS HANDLING ===
+    // === REFERRAL BONUS ===
     if (userData.tsohonUser !== "yes") {
-      // LEVEL 1 REFERRAL
+      // LEVEL 1
       if (userData.referralBy) {
         const refSnap = await db
           .ref("users")
@@ -121,7 +119,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      // LEVEL 2 REFERRAL
+      // LEVEL 2
       if (userData.level2ReferralBy) {
         const refSnap2 = await db
           .ref("users")
@@ -134,25 +132,25 @@ module.exports = async (req, res) => {
           const refUserRef2 = db.ref(`users/${refKey2}`);
           const refUserData2 = refSnap2.val()[refKey2];
 
-          const bonus2 = amount * 0.1;
+          const bonus2 = amount * 0.10;
           const newBonus2 =
-            parseFloat(refUserData2.referralBonussLeve2 || 0) + bonus2;
+            parseFloat(refUserData2.referralBonussLevel2 || 0) + bonus2;
           const newLevel2 = (parseInt(refUserData2.level2 || 0) + 1).toString();
 
           await refUserRef2.update({
-            referralBonussLeve2: `$${newBonus2.toFixed(2)}`,
+            referralBonussLevel2: `$${newBonus2.toFixed(2)}`,
             level2: newLevel2,
           });
         }
       }
 
-      // Mark user as old
+      // Mark user as no longer new
       await userRef.update({ tsohonUser: "yes" });
     }
 
     return res.status(200).json({ message: "Processed successfully" });
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    console.error("Webhook error:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
