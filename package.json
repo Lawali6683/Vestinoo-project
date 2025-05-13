@@ -1,14 +1,16 @@
 {
-  "name": "Vestinoo",
+  "name": "vestinio-project",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "module",
-  "engines": {
-    "node": ">=18"
+  "scripts": {
+    "start": "node api/webhook.js"
   },
   "dependencies": {
-    "firebase-admin": "^11.10.1"
+  "firebase-admin": "^11.10.1",
+  "express": "^4.17.1",
+  "body-parser": "^1.19.0",
+  "crypto": "latest"
   },
   "devDependencies": {},
   "author": "",
