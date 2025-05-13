@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
 
   const origin = req.headers.origin;
   if (origin !== "https://vestinoo.pages.dev") {
-    return res.status(403).json({ error: "Forbidden" });
+    return res.status(403).json({ error: "Forbidden origin" });
   }
 
   const authHeader = req.headers["x-api-key"];
@@ -39,8 +39,12 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+  console.log("Normalized Email:", normalizedEmail);
+
   try {
-    const user = await admin.auth().getUserByEmail(email);
+    const user = await admin.auth().getUserByEmail(normalizedEmail);
+    console.log("Firebase Auth User UID:", user.uid);
 
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
@@ -68,7 +72,7 @@ module.exports = async (req, res) => {
 
     const userData = {
       fullName,
-      email,
+      email: normalizedEmail,
       username,
       country,
       referralLink,
@@ -96,6 +100,7 @@ module.exports = async (req, res) => {
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
+    console.log("User data written to DB at:", `users/${user.uid}`);
 
     return res.status(201).json({
       message: "Registration successful. Please verify your email.",
@@ -104,6 +109,7 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error("Error during registration:", error.message);
+    console.error("Full error object:", error);
     return res.status(500).json({ error: "An error occurred during registration. Please try again." });
   }
 };
