@@ -22,20 +22,21 @@ module.exports = async (req, res) => {
 
   if (req.method === "OPTIONS") return res.status(204).end();
 
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_AUTH_KEY) {
     return res.status(401).json({ error: "Unauthorized request" });
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    const { uid, wellecomeBonus } = req.body;
+    const { uid, wellecomeBonus } = req.body || {};
+    console.log("Request Body:", req.body);
 
-    if (!uid || typeof wellecomeBonus !== "number") {
-      return res.status(400).json({ error: "Missing or invalid uid or wellecomeBonus" });
+    if (!uid || typeof wellecomeBonus !== "number" || wellecomeBonus <= 0) {
+      return res.status(400).json({ error: "Invalid uid or wellecomeBonus" });
     }
 
     const userRef = db.ref(`users/${uid}`);
@@ -46,17 +47,17 @@ module.exports = async (req, res) => {
     }
 
     const userData = snapshot.val();
-    const currentBalance = typeof userData.userBalance === "number" ? userData.userBalance : 0;
-   
+    const currentBalance = parseFloat(userData.userBalance) || 0;
+
     await userRef.update({
-      wellecomeBonus: 0,
-      userBalance: +(currentBalance + 0.5).toFixed(2)
+      userBalance: currentBalance + wellecomeBonus,
+      wellecomeBonus: 0
     });
 
-    return res.status(200).json({ message: "Welcome bonus applied successfully." });
+    return res.status(200).json({ success: true, message: "Welcome bonus cleared successfully" });
 
   } catch (error) {
-    console.error("Welcome API error:", error);
+    console.error("Error handling welcome bonus:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
