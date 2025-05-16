@@ -35,24 +35,20 @@ module.exports = async (req, res) => {
 
   const data = req.body;
 
-  if (data.payment_status !== "finished") {
-    return res.status(200).json({ message: "Payment not complete" });
+  if (!data || data.status !== "completed") {
+    return res.status(200).json({ message: "Payment not completed" });
   }
 
   try {
     const orderId = data.order_id || "";
-    const amount = parseFloat(data.price_amount);
-    if (!orderId || !data.payment_id || isNaN(amount)) {
+    const amount = parseFloat(data.amount);
+    const email = data.buyer_email || "";
+    const paymentId = data.txn_id || data.transaction_id || "";
+
+    if (!orderId || !paymentId || !email.includes("@") || isNaN(amount)) {
       return res.status(400).json({ error: "Invalid webhook data" });
     }
 
-    // Extract email from orderId
-    const email = orderId.split("_")[0];
-    if (!email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email format in order_id" });
-    }
-
-    // Search user by email
     const snapshot = await db
       .ref("users")
       .orderByChild("email")
@@ -67,24 +63,20 @@ module.exports = async (req, res) => {
     const userRef = db.ref(`users/${userKey}`);
     const userData = snapshot.val()[userKey];
 
-    // Check for duplicate payment
     const processed = userData.processedPayments || {};
-    if (processed[data.payment_id]) {
+    if (processed[paymentId]) {
       return res.status(200).json({ message: "Already processed" });
     }
 
-    // Mark payment as processed
     await userRef.child("processedPayments").update({
-      [data.payment_id]: true,
+      [paymentId]: true,
     });
 
-    // Update deposit value (as number not string)
     await userRef.update({
       deposit: amount,
     });
 
-    // Find suitable investment plan
-    const selectedPlan = plans.find(plan => amount >= plan.amount);
+    const selectedPlan = plans.find((plan) => amount >= plan.amount);
     if (selectedPlan) {
       await userRef.update({
         dailyProfit: selectedPlan.dailyProfit,
@@ -92,9 +84,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // === REFERRAL BONUS ===
     if (userData.tsohonUser !== "yes") {
-      // LEVEL 1
       if (userData.referralBy) {
         const refSnap = await db
           .ref("users")
@@ -119,7 +109,6 @@ module.exports = async (req, res) => {
         }
       }
 
-      // LEVEL 2
       if (userData.level2ReferralBy) {
         const refSnap2 = await db
           .ref("users")
@@ -144,7 +133,6 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Mark user as no longer new
       await userRef.update({ tsohonUser: "yes" });
     }
 
