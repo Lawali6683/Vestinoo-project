@@ -8,7 +8,7 @@ const {
 } = process.env;
 
 const ALLOWED_ORIGIN = "https://vestinoo.pages.dev";
-const MEXELPAY_URL = "https://api.maxelpay.com/merchant/initiate-payment"; // Live URL
+const MEXELPAY_URL = "https://api.maxelpay.com/v1/prod/merchant/order/checkout"; 
 
 module.exports = async (req, res) => {
   try {
