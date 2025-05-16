@@ -8,7 +8,7 @@ const {
 } = process.env;
 
 const ALLOWED_ORIGIN = "https://vestinoo.pages.dev";
-const MEXELPAY_URL = "https://api.maxelpay.com/v1/prod/merchant/order/checkout"; 
+const MEXELPAY_URL = "https://api.maxelpay.com/v1/prod/merchant/order/checkout";
 
 module.exports = async (req, res) => {
   try {
@@ -19,21 +19,21 @@ module.exports = async (req, res) => {
 
     if (req.method === "OPTIONS") return res.status(204).end();
 
-    // Origin check
+    // Check request origin
     const origin = req.headers.origin;
     if (origin !== ALLOWED_ORIGIN) {
       console.error("Origin not allowed:", origin);
       return res.status(403).json({ error: "Forbidden origin", origin });
     }
 
-    // API key check
+    // Validate API key
     const clientApiKey = req.headers["x-api-key"];
     if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
       console.error("Invalid or missing API key:", clientApiKey);
       return res.status(401).json({ error: "Unauthorized", key: clientApiKey });
     }
 
-    // Body validation
+    // Validate request body
     const { email, coin, amount } = req.body || {};
     if (!email || !coin || !amount || isNaN(amount)) {
       console.error("Invalid request body:", req.body);
