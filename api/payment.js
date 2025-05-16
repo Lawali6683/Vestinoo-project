@@ -8,70 +8,83 @@ const {
 } = process.env;
 
 const ALLOWED_ORIGIN = "https://vestinoo.pages.dev";
-const MEXELPAY_URL = "https://api.maxelpay.com/v1/prod/merchant/order/checkout"; 
+const MEXELPAY_URL = "https://api.maxelpay.com/merchant/initiate-payment"; // Live URL
 
 module.exports = async (req, res) => {
-  // CORS Headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
-
-  if (req.method === "OPTIONS") return res.status(204).end();
-
-  // Verify origin
-  const origin = req.headers.origin;
-  if (origin !== ALLOWED_ORIGIN) {
-    return res.status(403).json({ error: "Forbidden origin" });
-  }
-
-  // Check API key
-  const clientApiKey = req.headers["x-api-key"];
-  if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  // Extract request data
-  const { email, coin, amount } = req.body || {};
-  if (!email || !coin || !amount || isNaN(amount)) {
-    return res.status(400).json({ error: "Missing or invalid fields: email, coin, amount" });
-  }
-
-  // Generate unique order ID
-  const orderId = `${email}_${crypto.randomBytes(8).toString("hex")}`;
-
-  // Prepare MaxelPay payload
-  const payload = {
-    amount: parseFloat(amount),
-    currency: coin.toUpperCase(),
-    order_id: orderId,
-    callback_url: "https://vestinoo-project.vercel.app/api/webhook",
-    buyer_email: email
-  };
-
-  const headers = {
-    "Content-Type": "application/json",
-    "api-key": MEXELPAY_API_KEY,
-    "api-secret": MEXELPAY_API_SECRET
-  };
-
   try {
+    // Set CORS headers
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
+
+    if (req.method === "OPTIONS") return res.status(204).end();
+
+    // Origin check
+    const origin = req.headers.origin;
+    if (origin !== ALLOWED_ORIGIN) {
+      console.error("Origin not allowed:", origin);
+      return res.status(403).json({ error: "Forbidden origin", origin });
+    }
+
+    // API key check
+    const clientApiKey = req.headers["x-api-key"];
+    if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
+      console.error("Invalid or missing API key:", clientApiKey);
+      return res.status(401).json({ error: "Unauthorized", key: clientApiKey });
+    }
+
+    // Body validation
+    const { email, coin, amount } = req.body || {};
+    if (!email || !coin || !amount || isNaN(amount)) {
+      console.error("Invalid request body:", req.body);
+      return res.status(400).json({ error: "Missing or invalid fields", received: req.body });
+    }
+
+    const orderId = `${email}_${crypto.randomBytes(8).toString("hex")}`;
+
+    const payload = {
+      amount: parseFloat(amount),
+      currency: coin.toUpperCase(),
+      order_id: orderId,
+      callback_url: "https://vestinoo-project.vercel.app/api/webhook",
+      buyer_email: email
+    };
+
+    const headers = {
+      "Content-Type": "application/json",
+      "api-key": MEXELPAY_API_KEY,
+      "api-secret": MEXELPAY_API_SECRET
+    };
+
+    console.log("Sending payload to MaxelPay:", payload);
+
     const response = await fetch(MEXELPAY_URL, {
       method: "POST",
       headers,
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json();
+    const resultText = await response.text();
+    let result;
 
-    // Check if response is valid
+    try {
+      result = JSON.parse(resultText);
+    } catch (jsonError) {
+      console.error("Failed to parse MaxelPay response as JSON:", resultText);
+      return res.status(500).json({ error: "Invalid JSON response from MaxelPay", raw: resultText });
+    }
+
     if (!response.ok || !result?.payment_url) {
+      console.error("MaxelPay response error:", result);
       return res.status(500).json({
         error: "Failed to create payment with MaxelPay",
+        response_status: response.status,
         details: result
       });
     }
 
-    // Success - return payment URL to frontend
+    console.log("Payment URL received:", result.payment_url);
+
     return res.status(200).json({
       success: true,
       order_id: orderId,
@@ -79,10 +92,11 @@ module.exports = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("MaxelPay API error:", err);
+    console.error("Unexpected server error:", err);
     return res.status(500).json({
-      error: "Server error",
-      details: err.message
+      error: "Server crash or unexpected error",
+      message: err.message,
+      stack: err.stack
     });
   }
 };
