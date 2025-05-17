@@ -19,16 +19,19 @@ module.exports = async (req, res) => {
 
     const origin = req.headers.origin;
     if (origin !== ALLOWED_ORIGIN) {
+      console.warn("Forbidden origin:", origin);
       return res.status(403).json({ error: "Forbidden origin", origin });
     }
 
     const clientApiKey = req.headers["x-api-key"];
     if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
+      console.warn("Unauthorized API key");
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const { email, coin, amount } = req.body || {};
     if (!email || !coin || !amount || isNaN(amount)) {
+      console.warn("Invalid request fields:", req.body);
       return res.status(400).json({ error: "Invalid request fields", received: req.body });
     }
 
@@ -49,35 +52,59 @@ module.exports = async (req, res) => {
       margin_ratio: 1.0
     };
 
-    const response = await fetch(PAYID19_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(postData)
-    });
+    let fetchResponse, fetchResult;
 
-    const result = await response.json();
+    try {
+      fetchResponse = await fetch(PAYID19_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(postData)
+      });
 
-    if (!response.ok || result.status === "error" || !result.message?.invoice?.payment_url) {
+      fetchResult = await fetchResponse.json();
+    } catch (fetchError) {
+      console.error("Fetch failed:", fetchError);
+      return res.status(500).json({
+        error: "Fetch to Payid19 failed",
+        message: fetchError.message,
+        stack: fetchError.stack,
+        context: {
+          request: postData,
+        }
+      });
+    }
+
+    if (!fetchResponse.ok || fetchResult.status === "error" || !fetchResult.message?.invoice?.payment_url) {
+      console.error("Payid19 API returned error:", fetchResult);
       return res.status(500).json({
         error: "Failed to create payment with Payid19",
-        details: result?.message || result
+        statusCode: fetchResponse.status,
+        statusText: fetchResponse.statusText,
+        payidResponse: fetchResult,
+        requestData: postData
       });
     }
 
     return res.status(200).json({
       success: true,
       order_id: orderId,
-      payment_url: result.message.invoice.payment_url
+      payment_url: fetchResult.message.invoice.payment_url,
+      raw: fetchResult // optional, can be removed later
     });
 
   } catch (err) {
-    console.error("Server error:", err);
+    console.error("Unhandled server error:", err);
     return res.status(500).json({
-      error: "Server error",
+      error: "Unhandled server error",
       message: err.message,
-      stack: err.stack
+      stack: err.stack,
+      env: {
+        PAYID19_PUBLIC_KEY: !!PAYID19_PUBLIC_KEY,
+        PAYID19_PRIVATE_KEY: !!PAYID19_PRIVATE_KEY,
+        API_AUTH_KEY: !!API_AUTH_KEY
+      }
     });
   }
 };
