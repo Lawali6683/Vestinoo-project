@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-const axios = require("axios");
 
 const {
   PAYID19_PUBLIC_KEY,
@@ -50,10 +49,17 @@ module.exports = async (req, res) => {
       margin_ratio: 1.0
     };
 
-    const response = await axios.post(PAYID19_URL, postData);
-    const result = response.data;
+    const response = await fetch(PAYID19_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(postData)
+    });
 
-    if (!result || result.status === 'error' || !result.message?.invoice?.payment_url) {
+    const result = await response.json();
+
+    if (!response.ok || result.status === "error" || !result.message?.invoice?.payment_url) {
       return res.status(500).json({
         error: "Failed to create payment with Payid19",
         details: result?.message || result
