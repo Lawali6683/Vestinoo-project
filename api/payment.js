@@ -19,17 +19,20 @@ module.exports = async (req, res) => {
 
     const origin = req.headers.origin;
     if (origin !== ALLOWED_ORIGIN) {
+      console.error("❌ Blocked origin:", origin);
       return res.status(403).json({ error: "Forbidden origin", origin });
     }
 
     const clientApiKey = req.headers["x-api-key"];
     if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
+      console.error("❌ Invalid or missing API key:", clientApiKey);
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const { email, coin, network, amount } = req.body || {};
 
     if (!email || !coin || !amount || isNaN(amount)) {
+      console.error("❌ Invalid request fields:", { email, coin, network, amount });
       return res.status(400).json({
         error: "Invalid request fields",
         received: { email, coin, network, amount }
@@ -58,7 +61,8 @@ module.exports = async (req, res) => {
       postData.network = network;
     }
 
-    // Replace axios with native fetch
+    console.log("📤 Sending request to Payid19:", JSON.stringify(postData, null, 2));
+
     const response = await fetch(PAYID19_URL, {
       method: "POST",
       headers: {
@@ -69,7 +73,14 @@ module.exports = async (req, res) => {
 
     const result = await response.json();
 
+    console.log("📥 Received response from Payid19:", JSON.stringify(result, null, 2));
+
     if (!response.ok || result.status === 'error' || !result.message?.invoice?.payment_url) {
+      console.error("❌ Payid19 Error:", {
+        status: result?.status,
+        message: result?.message,
+        full: result
+      });
       return res.status(500).json({
         error: "Failed to create payment with Payid19",
         details: result?.message || result
@@ -85,7 +96,11 @@ module.exports = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Server error:", err);
+    console.error("❌ Unexpected server error:", {
+      message: err.message,
+      stack: err.stack
+    });
+
     return res.status(500).json({
       error: "Server error",
       message: err.message,
@@ -93,4 +108,3 @@ module.exports = async (req, res) => {
     });
   }
 };
-
