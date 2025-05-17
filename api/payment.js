@@ -1,23 +1,14 @@
 const crypto = require("crypto");
-const fetch = require("node-fetch");
+const axios = require("axios");
 
-// Saka API keys kai tsaye don gwaji (kada a bar haka a production)
-const MEXELPAY_API_KEY = "51tIVYtZKxmJfmGNJiM33JmNGo7pAA05";
-const MEXELPAY_API_SECRET = "MisQmechjBmokNq8CFCQHN0yYlOPL2gr";
+const {
+  PAYID19_PUBLIC_KEY,
+  PAYID19_PRIVATE_KEY,
+  API_AUTH_KEY
+} = process.env;
 
-// Dole ne IV ya zama 16 characters, key kuma 32
-function padKey(key) {
-  return key.padEnd(32, "0").substring(0, 32);
-}
-
-function encryptPayload(secretKey, payloadObj) {
-  const key = Buffer.from(padKey(secretKey), "utf8");
-  const iv = Buffer.from(secretKey.substring(0, 16), "utf8"); // First 16 chars
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(JSON.stringify(payloadObj), "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return encrypted;
-}
+const ALLOWED_ORIGIN = "https://vestinoo.pages.dev";
+const PAYID19_URL = "https://payid19.com/api/v1/create_invoice";
 
 module.exports = async (req, res) => {
   try {
@@ -27,67 +18,56 @@ module.exports = async (req, res) => {
 
     if (req.method === "OPTIONS") return res.status(204).end();
 
+    const origin = req.headers.origin;
+    if (origin !== ALLOWED_ORIGIN) {
+      return res.status(403).json({ error: "Forbidden origin", origin });
+    }
+
+    const clientApiKey = req.headers["x-api-key"];
+    if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const { email, coin, amount } = req.body || {};
     if (!email || !coin || !amount || isNaN(amount)) {
       return res.status(400).json({ error: "Invalid request fields", received: req.body });
     }
 
-    const orderId = `${email}_${crypto.randomBytes(8).toString("hex")}`;
-    const timestamp = Math.floor(Date.now() / 1000) + 86400; // 24 hours from now
+    const orderId = `${email}_${crypto.randomBytes(6).toString("hex")}`;
 
-    const payload = {
-      orderID: orderId,
-      amount: parseFloat(amount),
-      currency: coin.toUpperCase(),
-      timestamp: timestamp,
-      userName: "Vestinoo",
-      siteName: "Vestinoo",
-      userEmail: email,
-      webhookUrl: "https://vestinoo-project.vercel.app/api/webhook"
+    const postData = {
+      public_key: PAYID19_PUBLIC_KEY,
+      private_key: PAYID19_PRIVATE_KEY,
+      email,
+      price_amount: parseFloat(amount),
+      price_currency: coin.toUpperCase(),
+      order_id: orderId,
+      title: "Vestinoo Deposit",
+      description: `Deposit of ${amount} ${coin}`,
+      add_fee_to_price: 1,
+      callback_url: "https://vestinoo-project.vercel.app/api/webhook",
+      expiration_date: 24,
+      margin_ratio: 1.0
     };
 
-    const encryptedData = encryptPayload(MEXELPAY_API_SECRET, payload);
+    const response = await axios.post(PAYID19_URL, postData);
+    const result = response.data;
 
-    const headers = {
-      "Content-Type": "application/json",
-      "api-key": MEXELPAY_API_KEY
-    };
-
-    const response = await fetch("https://api.maxelpay.com/v1/prod/merchant/order/checkout", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ data: encryptedData })
-    });
-
-    const rawText = await response.text();
-    let result;
-    try {
-      result = JSON.parse(rawText);
-    } catch (e) {
+    if (!result || result.status === 'error' || !result.message?.invoice?.payment_url) {
       return res.status(500).json({
-        error: "Invalid JSON returned by MaxelPay",
-        statusCode: response.status,
-        rawText
-      });
-    }
-
-    if (!response.ok || !result?.payment_url) {
-      return res.status(500).json({
-        error: "MaxelPay returned error",
-        statusCode: response.status,
-        details: result
+        error: "Failed to create payment with Payid19",
+        details: result?.message || result
       });
     }
 
     return res.status(200).json({
       success: true,
       order_id: orderId,
-      payment_url: result.payment_url,
-      expires_at: timestamp
+      payment_url: result.message.invoice.payment_url
     });
 
   } catch (err) {
-    console.error("Internal error:", err); // will show in Vercel logs
+    console.error("Server error:", err);
     return res.status(500).json({
       error: "Server error",
       message: err.message,
