@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-const axios = require("axios");
 
 const {
   PAYID19_PUBLIC_KEY,
@@ -55,15 +54,22 @@ module.exports = async (req, res) => {
       coin
     };
 
-    // Add network only if it's defined
     if (network) {
       postData.network = network;
     }
 
-    const response = await axios.post(PAYID19_URL, postData);
-    const result = response.data;
+    // Replace axios with native fetch
+    const response = await fetch(PAYID19_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(postData)
+    });
 
-    if (!response || result.status === 'error' || !result.message?.invoice?.payment_url) {
+    const result = await response.json();
+
+    if (!response.ok || result.status === 'error' || !result.message?.invoice?.payment_url) {
       return res.status(500).json({
         error: "Failed to create payment with Payid19",
         details: result?.message || result
@@ -87,3 +93,4 @@ module.exports = async (req, res) => {
     });
   }
 };
+
