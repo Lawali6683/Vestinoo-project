@@ -12,17 +12,21 @@ const MEXELPAY_URL = "https://api.maxelpay.com/v1/prod/merchant/order/checkout";
 
 // AES-256-CBC Encryption Function
 function encryptPayload(secretKey, payloadObj) {
-  const key = Buffer.from(secretKey, "utf8");
-  const iv = Buffer.from(secretKey.substring(0, 16), "utf8"); // First 16 chars as IV
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(JSON.stringify(payloadObj), "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return encrypted;
+  try {
+    const key = Buffer.from(secretKey, "utf8");
+    const iv = Buffer.from(secretKey.substring(0, 16), "utf8"); // IV: 16 bytes from secret
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let encrypted = cipher.update(JSON.stringify(payloadObj), "utf8", "base64");
+    encrypted += cipher.final("base64");
+    return encrypted;
+  } catch (e) {
+    throw new Error("Encryption failed: " + e.message);
+  }
 }
 
 module.exports = async (req, res) => {
   try {
-    // CORS headers
+    // CORS setup
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
@@ -31,23 +35,25 @@ module.exports = async (req, res) => {
 
     const origin = req.headers.origin;
     if (origin !== ALLOWED_ORIGIN) {
-      return res.status(403).json({ error: "Forbidden origin", origin });
+      return res.status(403).json({ error: "Forbidden origin", received_origin: origin });
     }
 
     const clientApiKey = req.headers["x-api-key"];
     if (!clientApiKey || clientApiKey !== API_AUTH_KEY) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ error: "Unauthorized", received_key: clientApiKey });
     }
 
     const { email, coin, amount } = req.body || {};
     if (!email || !coin || !amount || isNaN(amount)) {
-      return res.status(400).json({ error: "Invalid request fields", received: req.body });
+      return res.status(400).json({
+        error: "Invalid or missing request fields",
+        expected: ["email", "coin", "amount"],
+        received: req.body
+      });
     }
 
     const orderId = `${email}_${crypto.randomBytes(8).toString("hex")}`;
-
-    
-    const timestamp = Math.floor(Date.now() / 1000) + 86400; 
+    const timestamp = Math.floor(Date.now() / 1000) + 86400;
 
     const payload = {
       orderID: orderId,
@@ -57,48 +63,73 @@ module.exports = async (req, res) => {
       userName: "Vestinoo",
       siteName: "Vestinoo",
       userEmail: email,
-      webhookUrl: "https://vestinoo-project.vercel.app/api/webhook"     
+      webhookUrl: "https://vestinoo-project.vercel.app/api/webhook"
     };
 
-    const encryptedData = encryptPayload(MEXELPAY_API_SECRET, payload);
+    let encryptedData;
+    try {
+      encryptedData = encryptPayload(MEXELPAY_API_SECRET, payload);
+    } catch (e) {
+      return res.status(500).json({
+        error: "Encryption error",
+        message: e.message,
+        payload: payload
+      });
+    }
 
     const headers = {
       "Content-Type": "application/json",
       "api-key": MEXELPAY_API_KEY
     };
 
-    const response = await fetch(MEXELPAY_URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ data: encryptedData })
-    });
-
-    const resultText = await response.text();
-    let result;
+    let response, resultText, result;
     try {
-      result = JSON.parse(resultText);
-    } catch {
-      return res.status(500).json({ error: "Invalid JSON response from MaxelPay", raw: resultText });
-    }
+      response = await fetch(MEXELPAY_URL, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ data: encryptedData })
+      });
+      resultText = await response.text();
 
-    if (!response.ok || !result?.payment_url) {
+      try {
+        result = JSON.parse(resultText);
+      } catch (jsonErr) {
+        return res.status(502).json({
+          error: "MaxelPay returned invalid JSON",
+          status: response.status,
+          text: resultText
+        });
+      }
+
+      if (!response.ok || !result?.payment_url) {
+        return res.status(500).json({
+          error: "MaxelPay error",
+          status: response.status,
+          result: result,
+          payloadSent: payload,
+          encryptedDataSent: encryptedData
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        order_id: orderId,
+        payment_url: result.payment_url,
+        expires_at: timestamp
+      });
+
+    } catch (err) {
       return res.status(500).json({
-        error: "Failed to create payment with MaxelPay",
-        response_status: response.status,
-        details: result
+        error: "Network or Fetch error",
+        message: err.message,
+        payload: payload,
+        encryptedData: encryptedData
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      order_id: orderId,
-      payment_url: result.payment_url,
-      expires_at: timestamp
-    });
-
   } catch (err) {
     return res.status(500).json({
-      error: "Server error",
+      error: "Unexpected server error",
       message: err.message,
       stack: err.stack
     });
