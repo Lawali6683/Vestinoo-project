@@ -1,11 +1,13 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const https = require("https");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
   : null;
+const XAIGATE_API_KEY = process.env.XAIGATE_API_KEY;
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -15,6 +17,48 @@ if (!admin.apps.length) {
 }
 
 const db = admin.database();
+
+function postData(path, data) {
+  return new Promise((resolve, reject) => {
+    const dataString = JSON.stringify(data);
+    const options = {
+      hostname: "wallet-api.xaigate.com",
+      port: 443,
+      path: path,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(dataString),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let responseData = "";
+      res.on("data", (chunk) => {
+        responseData += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const parsedData = JSON.parse(responseData);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(parsedData);
+          } else {
+            reject(parsedData);
+          }
+        } catch (e) {
+          reject({ error: "Invalid JSON response", details: e });
+        }
+      });
+    });
+
+    req.on("error", (e) => {
+      reject({ error: "Request error", details: e });
+    });
+
+    req.write(dataString);
+    req.end();
+  });
+}
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -34,7 +78,6 @@ module.exports = async (req, res) => {
   }
 
   const { fullName, email, username, country, password, referralBy } = req.body;
-
   if (!fullName || !email || !username || !country || !password) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -70,6 +113,47 @@ module.exports = async (req, res) => {
 
     const createdAt = new Date().toISOString();
 
+    // Step 1: Create XAIGATE User
+    let createUserResponse;
+    try {
+      createUserResponse = await postData("/api/v1/createUser", {
+        name: fullName,
+        apiKey: XAIGATE_API_KEY,
+      });
+    } catch (error) {
+      console.error("Error creating XAIGATE user:", error);
+      return res.status(500).json({ error: "Failed to create XAIGATE user" });
+    }
+
+    const xaigateUserId = createUserResponse.id;
+    console.log("XAIGATE User ID:", xaigateUserId);
+
+    // Step 2: Create wallets for 4 networks
+    const coins = [
+      { name: "bnbAddress", networkId: "56" },
+      { name: "usdtbep20Address", networkId: "BEP20-USDT" },
+      { name: "busdAddress", networkId: "BEP20-BUSD" },
+      { name: "bnbbep20Address", networkId: "BEP20-BNB" },
+    ];
+
+    const walletAddresses = {};
+
+    for (const coin of coins) {
+      try {
+        const walletResponse = await postData("/api/v1/generateAddress", {
+          apiKey: XAIGATE_API_KEY,
+          userId: xaigateUserId,
+          networkId: coin.networkId,
+        });
+
+        walletAddresses[coin.name] = walletResponse.address;
+        console.log(`Wallet created for ${coin.name}:`, walletResponse);
+      } catch (err) {
+        console.error(`Error generating wallet for ${coin.name}:`, err);
+        return res.status(500).json({ error: `Failed to generate wallet for ${coin.name}` });
+      }
+    }
+
     const userData = {
       fullName,
       email: normalizedEmail,
@@ -92,18 +176,17 @@ module.exports = async (req, res) => {
       level1: "0",
       level2: "0",
       usdttrc20Address: "---",
-      bnbAddress: "---",
       btcAddress: "---",
-      usdtbep20Address: "---",
+      xaigateUserId,
       createdAt,
-      registerTime: createdAt,
+      ...walletAddresses,
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
     console.log("User data written to DB at:", `users/${user.uid}`);
 
     return res.status(201).json({
-      message: "Registration successful. Please verify your email.",
+      message: "Registration successful. Wallets created.",
       userId: user.uid,
       vestinooID,
     });
