@@ -24,7 +24,7 @@ function postData(path, data) {
     const options = {
       hostname: "wallet-api.xaigate.com",
       port: 443,
-      path: path,
+      path,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -113,7 +113,7 @@ module.exports = async (req, res) => {
 
     const createdAt = new Date().toISOString();
 
-    // Step 1: Create XAIGATE User
+    // STEP 1: Create XaiGate user
     let createUserResponse;
     try {
       createUserResponse = await postData("/api/v1/createUser", {
@@ -121,39 +121,46 @@ module.exports = async (req, res) => {
         apiKey: XAIGATE_API_KEY,
       });
     } catch (error) {
-      console.error("Error creating XAIGATE user:", error);
-      return res.status(500).json({ error: "Failed to create XAIGATE user" });
+      console.error("Error creating XaiGate user:", error);
+      return res.status(500).json({ error: "Failed to create XaiGate user" });
     }
 
     const xaigateUserId = createUserResponse.id;
-    console.log("XAIGATE User ID:", xaigateUserId);
+    if (!xaigateUserId) {
+      return res.status(422).json({ error: "XaiGate user ID is null or undefined" });
+    }
 
-    // Step 2: Create wallets for 4 networks
-    const coins = [
-      { name: "bnbAddress", networkId: "56" },
-      { name: "usdtbep20Address", networkId: "BEP20-USDT" },
-      { name: "busdAddress", networkId: "BEP20-BUSD" },
-      { name: "bnbbep20Address", networkId: "BEP20-BNB" },
+    console.log("XaiGate User ID:", xaigateUserId);
+
+    // STEP 2: Create wallets
+    const coinNetworks = [
+      { name: "bnbBep20Address", networkId: "BEP20-BNB" },
+      { name: "usdtBep20Address", networkId: "BEP20-USDT" },
+      { name: "usdcBep20Address", networkId: "BEP20-USDC" },
+      { name: "trxBep20Address", networkId: "BEP20-TRX" },
     ];
 
     const walletAddresses = {};
 
-    for (const coin of coins) {
+    for (const coin of coinNetworks) {
       try {
-        const walletResponse = await postData("/api/v1/generateAddress", {
+        const wallet = await postData("/api/v1/generateAddress", {
           apiKey: XAIGATE_API_KEY,
           userId: xaigateUserId,
           networkId: coin.networkId,
         });
 
-        walletAddresses[coin.name] = walletResponse.address;
-        console.log(`Wallet created for ${coin.name}:`, walletResponse);
+        if (!wallet.address) throw new Error("No address returned");
+
+        walletAddresses[coin.name] = wallet.address;
+        console.log(`${coin.name} created: ${wallet.address}`);
       } catch (err) {
         console.error(`Error generating wallet for ${coin.name}:`, err);
-        return res.status(500).json({ error: `Failed to generate wallet for ${coin.name}` });
+        return res.status(500).json({ error: `Failed to generate ${coin.name}` });
       }
     }
 
+    // STEP 3: Save user data
     const userData = {
       fullName,
       email: normalizedEmail,
@@ -175,15 +182,13 @@ module.exports = async (req, res) => {
       referralBonussLeve2: 0,
       level1: "0",
       level2: "0",
-      usdttrc20Address: "---",
-      btcAddress: "---",
       xaigateUserId,
       createdAt,
       ...walletAddresses,
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
-    console.log("User data written to DB at:", `users/${user.uid}`);
+    console.log(`User saved at: users/${user.uid}`);
 
     return res.status(201).json({
       message: "Registration successful. Wallets created.",
