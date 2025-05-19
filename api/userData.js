@@ -34,16 +34,12 @@ function postData(path, data) {
 
     const req = https.request(options, (res) => {
       let responseData = "";
-
-      res.on("data", (chunk) => {
-        responseData += chunk;
-      });
-
+      res.on("data", (chunk) => (responseData += chunk));
       res.on("end", () => {
         try {
           const parsedData = JSON.parse(responseData);
-          console.log(`[XaiGate ${path}] Response status:`, res.statusCode);
-          console.log(`[XaiGate ${path}] Response body:`, parsedData);
+          console.log(`[XaiGate ${path}] Status:`, res.statusCode);
+          console.log(`[XaiGate ${path}] Body:`, parsedData);
 
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsedData);
@@ -54,14 +50,14 @@ function postData(path, data) {
             });
           }
         } catch (e) {
-          console.error("JSON parsing error:", e);
-          reject({ error: "Invalid JSON response", raw: responseData });
+          console.error("JSON Parse Error:", e);
+          reject({ error: "Invalid JSON", raw: responseData });
         }
       });
     });
 
     req.on("error", (e) => {
-      console.error("HTTPS request error:", e);
+      console.error("HTTPS Request Error:", e);
       reject({ error: "Request error", details: e });
     });
 
@@ -74,7 +70,6 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
-
   if (req.method === "OPTIONS") return res.status(204).end();
 
   const origin = req.headers.origin;
@@ -93,12 +88,8 @@ module.exports = async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  console.log("Normalized Email:", normalizedEmail);
-
   try {
     const user = await admin.auth().getUserByEmail(normalizedEmail);
-    console.log("Firebase Auth User UID:", user.uid);
-
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
@@ -117,14 +108,13 @@ module.exports = async (req, res) => {
         validReferralBy = referralBy;
         level2ReferralBy = refUser.referralBy || null;
       } else {
-        console.error("Invalid referral code:", referralBy);
         return res.status(400).json({ error: "Invalid referral code" });
       }
     }
 
     const createdAt = new Date().toISOString();
 
-    // STEP 1: Create XaiGate user
+    // STEP 1: Create user in XaiGate
     let createUserResponse;
     try {
       createUserResponse = await postData("/api/v1/createUser", {
@@ -132,47 +122,42 @@ module.exports = async (req, res) => {
         apiKey: XAIGATE_API_KEY,
       });
     } catch (error) {
-      console.error("❌ Error creating XaiGate user:", error);
       return res.status(500).json({ error: "Failed to create XaiGate user", details: error });
     }
 
     const xaigateUserId = createUserResponse.userId;
     if (!xaigateUserId) {
-      console.error("❌ Missing XaiGate user ID in response:", createUserResponse);
-      return res.status(422).json({ error: "XaiGate user ID is null or undefined" });
+      return res.status(422).json({ error: "XaiGate user ID not returned" });
     }
 
-    console.log("✅ XaiGate User ID:", xaigateUserId);
+    // STEP 2: Generate wallet addresses
+    const wallets = {};
 
-    // STEP 2: Create wallets
-    const coinNetworks = [
-      { name: "bnbBep20Address", networkId: "bnb_bep20" },
-      { name: "usdtBep20Address", networkId: "usdt_bep20" },
-      { name: "usdcBep20Address", networkId: "usdc_bep20" },
-      { name: "trxBep20Address", networkId: "trx_bep20" },
+    const coins = [
+      { coin: "BNB", field: "bnbBep20Address", networkId: "56" },
+      { coin: "USDT", field: "usdtBep20Address", networkId: "56" },
+      { coin: "USDC", field: "usdcBep20Address", networkId: "56" },
+      { coin: "TRX", field: "trxBep20Address", networkId: "tron" }, // or use "1" if XaiGate docs prefer
     ];
 
-    const walletAddresses = {};
-
-    for (const coin of coinNetworks) {
+    for (const { coin, field, networkId } of coins) {
       try {
-        const wallet = await postData("/api/v1/generateAddress", {
+        const response = await postData("/api/v1/generateAddress", {
           apiKey: XAIGATE_API_KEY,
           userId: xaigateUserId,
-          networkId: coin.networkId,
+          coin,
+          networkId,
         });
 
-        if (!wallet.address) throw new Error("No address returned");
-
-        walletAddresses[coin.name] = wallet.address;
-        console.log(`✅ ${coin.name} wallet created:`, wallet.address);
+        if (!response.address) throw new Error("No address returned");
+        wallets[field] = response.address;
+        console.log(`✅ ${coin} → ${field}: ${response.address}`);
       } catch (err) {
-        console.error(`❌ Failed to generate wallet for ${coin.name}:`, err);
-        return res.status(500).json({ error: `Failed to generate ${coin.name}`, details: err });
+        return res.status(500).json({ error: `Failed to generate ${coin} address`, details: err });
       }
     }
 
-    // STEP 3: Save user data to Firebase
+    // STEP 3: Save to Firebase with addresses at root level
     const userData = {
       fullName,
       email: normalizedEmail,
@@ -196,22 +181,20 @@ module.exports = async (req, res) => {
       level2: "0",
       xaigateUserId,
       createdAt,
-      ...walletAddresses,
+      ...wallets,
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
-    console.log(`✅ User data saved at: users/${user.uid}`);
 
     return res.status(201).json({
-      message: "Registration successful. Wallets created.",
+      message: "User registered and wallets created.",
       userId: user.uid,
       vestinooID,
     });
   } catch (error) {
-    console.error("❌ Unhandled Error during registration:", error);
     return res.status(500).json({
-      error: "An error occurred during registration. Please try again.",
-      details: error,
+      error: "An unexpected error occurred.",
+      details: error.message || error,
     });
   }
 };
