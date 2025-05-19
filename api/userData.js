@@ -136,7 +136,7 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: "Failed to create XaiGate user", details: error });
     }
 
-    const xaigateUserId = createUserResponse.userId; // 🔥 FIXED HERE
+    const xaigateUserId = createUserResponse.userId;
     if (!xaigateUserId) {
       console.error("❌ Missing XaiGate user ID in response:", createUserResponse);
       return res.status(422).json({ error: "XaiGate user ID is null or undefined" });
@@ -146,10 +146,10 @@ module.exports = async (req, res) => {
 
     // STEP 2: Create wallets
     const coinNetworks = [
-      { name: "bnbBep20Address", networkId: "BEP20-BNB" },
-      { name: "usdtBep20Address", networkId: "BEP20-USDT" },
-      { name: "usdcBep20Address", networkId: "BEP20-USDC" },
-      { name: "trxBep20Address", networkId: "BEP20-TRX" },
+      { name: "bnbBep20Address", networkId: "bnb_bep20" },
+      { name: "usdtBep20Address", networkId: "usdt_bep20" },
+      { name: "usdcBep20Address", networkId: "usdc_bep20" },
+      { name: "trxBep20Address", networkId: "trx_bep20" },
     ];
 
     const walletAddresses = {};
