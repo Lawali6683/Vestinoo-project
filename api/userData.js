@@ -136,7 +136,7 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: "Failed to create XaiGate user", details: error });
     }
 
-    const xaigateUserId = createUserResponse.id;
+    const xaigateUserId = createUserResponse.userId; // 🔥 FIXED HERE
     if (!xaigateUserId) {
       console.error("❌ Missing XaiGate user ID in response:", createUserResponse);
       return res.status(422).json({ error: "XaiGate user ID is null or undefined" });
