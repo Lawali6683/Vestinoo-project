@@ -137,7 +137,7 @@ module.exports = async (req, res) => {
       { coin: "BNB", field: "bnbBep20Address", networkId: "56" },
       { coin: "USDT", field: "usdtBep20Address", networkId: "56" },
       { coin: "USDC", field: "usdcBep20Address", networkId: "56" },
-      { coin: "TRX", field: "trxBep20Address", networkId: "tron" }, // or use "1" if XaiGate docs prefer
+      { coin: "TRX", field: "trxBep20Address", networkId: "56" }, // or use "1" if XaiGate docs prefer
     ];
 
     for (const { coin, field, networkId } of coins) {
