@@ -34,24 +34,34 @@ function postData(path, data) {
 
     const req = https.request(options, (res) => {
       let responseData = "";
+
       res.on("data", (chunk) => {
         responseData += chunk;
       });
+
       res.on("end", () => {
         try {
           const parsedData = JSON.parse(responseData);
+          console.log(`[XaiGate ${path}] Response status:`, res.statusCode);
+          console.log(`[XaiGate ${path}] Response body:`, parsedData);
+
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsedData);
           } else {
-            reject(parsedData);
+            reject({
+              error: `XaiGate Error: ${res.statusCode}`,
+              response: parsedData,
+            });
           }
         } catch (e) {
-          reject({ error: "Invalid JSON response", details: e });
+          console.error("JSON parsing error:", e);
+          reject({ error: "Invalid JSON response", raw: responseData });
         }
       });
     });
 
     req.on("error", (e) => {
+      console.error("HTTPS request error:", e);
       reject({ error: "Request error", details: e });
     });
 
@@ -107,6 +117,7 @@ module.exports = async (req, res) => {
         validReferralBy = referralBy;
         level2ReferralBy = refUser.referralBy || null;
       } else {
+        console.error("Invalid referral code:", referralBy);
         return res.status(400).json({ error: "Invalid referral code" });
       }
     }
@@ -121,16 +132,17 @@ module.exports = async (req, res) => {
         apiKey: XAIGATE_API_KEY,
       });
     } catch (error) {
-      console.error("Error creating XaiGate user:", error);
-      return res.status(500).json({ error: "Failed to create XaiGate user" });
+      console.error("❌ Error creating XaiGate user:", error);
+      return res.status(500).json({ error: "Failed to create XaiGate user", details: error });
     }
 
     const xaigateUserId = createUserResponse.id;
     if (!xaigateUserId) {
+      console.error("❌ Missing XaiGate user ID in response:", createUserResponse);
       return res.status(422).json({ error: "XaiGate user ID is null or undefined" });
     }
 
-    console.log("XaiGate User ID:", xaigateUserId);
+    console.log("✅ XaiGate User ID:", xaigateUserId);
 
     // STEP 2: Create wallets
     const coinNetworks = [
@@ -153,14 +165,14 @@ module.exports = async (req, res) => {
         if (!wallet.address) throw new Error("No address returned");
 
         walletAddresses[coin.name] = wallet.address;
-        console.log(`${coin.name} created: ${wallet.address}`);
+        console.log(`✅ ${coin.name} wallet created:`, wallet.address);
       } catch (err) {
-        console.error(`Error generating wallet for ${coin.name}:`, err);
-        return res.status(500).json({ error: `Failed to generate ${coin.name}` });
+        console.error(`❌ Failed to generate wallet for ${coin.name}:`, err);
+        return res.status(500).json({ error: `Failed to generate ${coin.name}`, details: err });
       }
     }
 
-    // STEP 3: Save user data
+    // STEP 3: Save user data to Firebase
     const userData = {
       fullName,
       email: normalizedEmail,
@@ -188,7 +200,7 @@ module.exports = async (req, res) => {
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
-    console.log(`User saved at: users/${user.uid}`);
+    console.log(`✅ User data saved at: users/${user.uid}`);
 
     return res.status(201).json({
       message: "Registration successful. Wallets created.",
@@ -196,8 +208,10 @@ module.exports = async (req, res) => {
       vestinooID,
     });
   } catch (error) {
-    console.error("Error during registration:", error.message);
-    console.error("Full error object:", error);
-    return res.status(500).json({ error: "An error occurred during registration. Please try again." });
+    console.error("❌ Unhandled Error during registration:", error);
+    return res.status(500).json({
+      error: "An error occurred during registration. Please try again.",
+      details: error,
+    });
   }
 };
