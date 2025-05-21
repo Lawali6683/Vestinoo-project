@@ -1,5 +1,4 @@
 const admin = require("firebase-admin");
-const crypto = require("crypto");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
@@ -7,6 +6,7 @@ const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
     ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
     : null;
 
+// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert(SERVICE_ACCOUNT),
@@ -22,80 +22,73 @@ module.exports = async (req, res) => {
     res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
-    // Handle OPTIONS request (CORS Preflight)
+    // Handle preflight request
     if (req.method === "OPTIONS") {
         return res.status(204).end();
     }
 
-    // Verify origin to prevent unauthorized access
+    // Only allow requests from your site
     const origin = req.headers.origin;
     if (origin !== "https://vestinoo.pages.dev") {
-        return res.status(403).json({ error: "Forbidden" });
+        return res.status(403).json({ error: "Forbidden: Invalid origin" });
     }
 
-    // Verify API key for authentication
-    const authHeader = req.headers["x-api-key"];
-    if (!authHeader || authHeader !== API_AUTH_KEY) {
-        return res.status(401).json({ error: "Unauthorized request" });
+    // Check API key
+    const apiKey = req.headers["x-api-key"];
+    if (!apiKey || apiKey !== API_AUTH_KEY) {
+        return res.status(401).json({ error: "Unauthorized: Invalid API key" });
     }
 
-    // Ensure method is POST
+    // Only allow POST
     if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
+        return res.status(405).json({ error: "Method Not Allowed" });
     }
 
     try {
-        // Parse the request body
-        const { email, amount, welletAddress, withdrawalTime } = req.body;
+        const { email, amount, walletAddress, coin, networkId, withdrawalTime } = req.body;
 
-        if (!email || !amount || !welletAddress || !withdrawalTime) {
+        // Validate input
+        if (!email || !amount || !walletAddress || !coin || !networkId || !withdrawalTime) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // Fetch user data from Firebase based on email
+        // Find user by email
         const usersRef = db.ref("users");
         const snapshot = await usersRef.once("value");
 
         let userId = null;
         let userData = null;
 
-        snapshot.forEach((childSnapshot) => {
-            const user = childSnapshot.val();
-            if (user.email === email) {
-                userId = childSnapshot.key;
-                userData = user;
+        snapshot.forEach((child) => {
+            const data = child.val();
+            if (data.email === email) {
+                userId = child.key;
+                userData = data;
             }
         });
 
-        // If user not found
         if (!userId) {
             return res.status(404).json({ error: "User not found" });
         }
 
-        // Check if `approvedWithdrawals` exists, if not, create it
-        const approvedWithdrawalsRef = db.ref(`users/${userId}/approvedWithdrawals`);
-        const approvedSnapshot = await approvedWithdrawalsRef.once("value");
-
-        if (!approvedSnapshot.exists()) {
-            await approvedWithdrawalsRef.set([]);
-        }
-
-        // Add the withdrawal data to `approvedWithdrawals`
+        // Add to approvedWithdrawals
+        const withdrawalRef = db.ref(`users/${userId}/approvedWithdrawals`);
         const newWithdrawal = {
             amount,
-            welletAddress,
+            walletAddress,
+            coin,
+            networkId,
             withdrawalTime,
         };
 
-        await approvedWithdrawalsRef.push(newWithdrawal);
+        await withdrawalRef.push(newWithdrawal);
 
-        // Success response
         return res.status(200).json({
-            message: "Withdrawal approved and data recorded successfully",
+            message: "Withdrawal request recorded successfully.",
             withdrawal: newWithdrawal,
         });
-    } catch (error) {
-        console.error("Error processing withdrawal:", error);
+    } catch (err) {
+        console.error("Error in withdrawal request:", err);
         return res.status(500).json({ error: "Internal server error" });
     }
 };
