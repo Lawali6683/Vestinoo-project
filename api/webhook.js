@@ -1,6 +1,7 @@
+// /api/xai-webhook.js
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 
-// Firebase credentials
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
@@ -28,117 +29,111 @@ const plans = [
   { amount: 2, dailyProfit: 0.16, days: 22 },
 ];
 
+function parseAmount(val) {
+  return parseFloat(val.toString().replace("$", ""));
+}
+
+function toDollars(val) {
+  return "$" + val.toFixed(2);
+}
+
 module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    return res.status(405).end("Method Not Allowed");
-  }
-
-  const data = req.body;
-
-  if (!data || data.status !== "completed") {
-    return res.status(200).json({ message: "Payment not completed" });
-  }
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
   try {
-    const orderId = data.order_id || "";
-    const amount = parseFloat(data.amount);
-    const email = data.buyer_email || "";
-    const paymentId = data.txn_id || data.transaction_id || "";
+    const data = req.body;
+    const {
+      transaction_id,
+      status,
+      coin,
+      amount,
+      address,
+      txid,
+      timestamp,
+      userId,
+    } = data;
 
-    if (!orderId || !paymentId || !email.includes("@") || isNaN(amount)) {
-      return res.status(400).json({ error: "Invalid webhook data" });
-    }
+    if (status !== "confirmed") return res.status(200).send("Ignored - Not confirmed");
 
-    const snapshot = await db
-      .ref("users")
-      .orderByChild("email")
-      .equalTo(email)
-      .once("value");
+    const logsRef = db.ref("/xaiWebhookLogs/" + transaction_id);
+    const logSnap = await logsRef.once("value");
+    if (logSnap.exists()) return res.status(200).send("Already processed");
 
-    if (!snapshot.exists()) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const userKey = Object.keys(snapshot.val())[0];
-    const userRef = db.ref(`users/${userKey}`);
-    const userData = snapshot.val()[userKey];
-
-    const processed = userData.processedPayments || {};
-    if (processed[paymentId]) {
-      return res.status(200).json({ message: "Already processed" });
-    }
-
-    await userRef.child("processedPayments").update({
-      [paymentId]: true,
+    const usersRef = db.ref("/users");
+    const snapshot = await usersRef.once("value");
+    let matchedUser = null;
+    snapshot.forEach((child) => {
+      if (child.val().xaigateUserId === userId) {
+        matchedUser = { key: child.key, data: child.val() };
+      }
     });
 
-    await userRef.update({
-      deposit: amount,
-    });
-
-    const selectedPlan = plans.find((plan) => amount >= plan.amount);
-    if (selectedPlan) {
-      await userRef.update({
-        dailyProfit: selectedPlan.dailyProfit,
-        depositTime: new Date().toISOString(),
-      });
+    if (!matchedUser) {
+      await logsRef.set({ error: true, reason: "User not found", data });
+      return res.status(400).send("User not found");
     }
 
-    if (userData.tsohonUser !== "yes") {
-      if (userData.referralBy) {
-        const refSnap = await db
-          .ref("users")
-          .orderByChild("referralCode")
-          .equalTo(userData.referralBy)
-          .once("value");
+    const uid = matchedUser.key;
+    const user = matchedUser.data;
+    const depositAmount = parseAmount(user.deposit || "$0.00");
+    const paymentAmount = parseAmount(amount);
+    const newTotal = depositAmount + paymentAmount;
 
-        if (refSnap.exists()) {
-          const refKey = Object.keys(refSnap.val())[0];
-          const refUserRef = db.ref(`users/${refKey}`);
-          const refUserData = refSnap.val()[refKey];
+    // Determine best plan that does not exceed newTotal
+    const selectedPlan = plans.find((plan) => newTotal >= plan.amount) || null;
+    const plan = [...plans].reverse().find((p) => newTotal >= p.amount);
 
-          const bonus1 = amount * 0.08;
-          const newBonus1 =
-            parseFloat(refUserData.referralBonusLeve1 || 0) + bonus1;
-          const newLevel1 = (parseInt(refUserData.level1 || 0) + 1).toString();
+    const updates = {};
+    updates["/users/" + uid + "/deposit"] = toDollars(newTotal);
+    updates["/users/" + uid + "/lastDepositTx"] = txid;
 
-          await refUserRef.update({
-            referralBonusLeve1: `$${newBonus1.toFixed(2)}`,
-            level1: newLevel1,
-          });
-        }
-      }
-
-      if (userData.level2ReferralBy) {
-        const refSnap2 = await db
-          .ref("users")
-          .orderByChild("referralCode")
-          .equalTo(userData.level2ReferralBy)
-          .once("value");
-
-        if (refSnap2.exists()) {
-          const refKey2 = Object.keys(refSnap2.val())[0];
-          const refUserRef2 = db.ref(`users/${refKey2}`);
-          const refUserData2 = refSnap2.val()[refKey2];
-
-          const bonus2 = amount * 0.10;
-          const newBonus2 =
-            parseFloat(refUserData2.referralBonussLevel2 || 0) + bonus2;
-          const newLevel2 = (parseInt(refUserData2.level2 || 0) + 1).toString();
-
-          await refUserRef2.update({
-            referralBonussLevel2: `$${newBonus2.toFixed(2)}`,
-            level2: newLevel2,
-          });
-        }
-      }
-
-      await userRef.update({ tsohonUser: "yes" });
+    if (plan) {
+      updates["/users/" + uid + "/dailyProfit"] = toDollars(plan.dailyProfit);
+      updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
     }
 
-    return res.status(200).json({ message: "Processed successfully" });
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    // Referral bonuses if new user
+    if (user.tsohonUser === "false") {
+      updates["/users/" + uid + "/tsohonUser"] = "yes";
+
+      if (user.referralBy) {
+        snapshot.forEach((refUser) => {
+          if (refUser.val().referralCode === user.referralBy) {
+            const refUid = refUser.key;
+            const refVal = refUser.val();
+
+            const currentBonus = parseAmount(refVal.referralBonusLeve1 || "$0.00");
+            const currentCount = parseInt(refVal.level1 || "0");
+            const bonus = paymentAmount * 0.08;
+            updates["/users/" + refUid + "/referralBonusLeve1"] = toDollars(currentBonus + bonus);
+            updates["/users/" + refUid + "/level1"] = currentCount + 1;
+          }
+        });
+      }
+
+      if (user.level2ReferralBy) {
+        snapshot.forEach((refUser) => {
+          if (refUser.val().referralCode === user.level2ReferralBy) {
+            const refUid = refUser.key;
+            const refVal = refUser.val();
+
+            const currentBonus = parseAmount(refVal.referralBonussLeve2 || "$0.00");
+            const currentCount = parseInt(refVal.level2 || "0");
+            const bonus = paymentAmount * 0.10;
+            updates["/users/" + refUid + "/referralBonussLeve2"] = toDollars(currentBonus + bonus);
+            updates["/users/" + refUid + "/level2"] = currentCount + 1;
+          }
+        });
+      }
+    }
+
+    await db.ref().update(updates);
+    await logsRef.set({ success: true, data });
+
+    res.status(200).send("Deposit processed");
+  } catch (err) {
+    const fallbackId = crypto.randomUUID();
+    await db.ref("/xaiWebhookErrors/" + fallbackId).set({ error: err.message, full: err.toString(), timestamp: new Date().toISOString() });
+    res.status(500).send("Error processing deposit");
   }
 };
