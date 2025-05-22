@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vestinoo Agent Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <style>
+      body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #0f0f0f;
+  color: #fff;
+}
+
+#login-screen {
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-box {
+  background: #1f1f1f;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  width: 300px;
+}
+
+.login-box input {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border: none;
+  border-radius: 5px;
+}
+
+.login-box button {
+  width: 100%;
+  padding: 10px;
+  background: #00c853;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+header {
+  text-align: center;
+  padding: 20px;
+  background: #1e1e1e;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.card {
+  background: #1e1e1e;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.user-table {
+  padding: 20px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #1c1c1c;
+}
+
+th, td {
+  padding: 10px;
+  border: 1px solid #333;
+  text-align: center;
+}
+
+  </style>
+</head>
+<body>
+
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>Login to Dashboard</h2>
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button id="loginBtn">Submit</button>
+      <p id="login-error"></p>
+    </div>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <header>
+      <h1 id="welcome">Welcome Agent</h1>
+    </header>
+
+    <section class="stats">
+      <div class="card">Total Users: <span id="totalUsers">0</span></div>
+      <div class="card">Users with Deposit: <span id="totalDepositUsers">0</span></div>
+      <div class="card">Total Invested Amount: $<span id="totalInvested">0</span></div>
+      <div class="card">Total Balance: $<span id="totalBalance">0</span></div>
+      <div class="card">Total Mined VestBit: <span id="totalVestBit">0</span></div>
+    </section>
+
+    <section class="user-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Full Name</th>
+            <th>Deposit</th>
+            <th>Daily Profit</th>
+            <th>VestBit</th>
+            <th>Level 1</th>
+            <th>Level</th>
+            <th>Vestinoo ID</th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script type="module">
+      import { app } from './firebase.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword
+} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+import {
+  getDatabase,
+  ref,
+  get
+} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const loginBtn = document.getElementById('loginBtn');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const loginError = document.getElementById('login-error');
+
+loginBtn.onclick = async () => {
+  try {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    loginError.textContent = "Login failed. Check credentials.";
+  }
+};
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    const snapshot = await get(ref(db, 'users'));
+    const users = snapshot.val() || {};
+
+    let totalUsers = 0, totalDepositUsers = 0, totalInvested = 0;
+    let totalBalance = 0, totalVestBit = 0;
+
+    const tableBody = document.getElementById('userRows');
+
+    for (let uid in users) {
+      const u = users[uid];
+      totalUsers++;
+
+      const deposit = parseFloat(u.deposit || 0);
+      const balance = parseFloat(u.userBalance || 0);
+      const vestBit = parseFloat(u.vestBit || 0);
+
+      if (deposit > 0) totalDepositUsers++;
+      totalInvested += deposit;
+      totalBalance += balance;
+      totalVestBit += vestBit;
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${u.email || ''}</td>
+        <td>${u.fullName || ''}</td>
+        <td>$${deposit.toFixed(2)}</td>
+        <td>${u.dailyProfit || 0}</td>
+        <td>${vestBit}</td>
+        <td>${u.level1 || ''}</td>
+        <td>${u.level || ''}</td>
+        <td>${u.vestinooID || ''}</td>
+      `;
+      tableBody.appendChild(row);
+
+      if (uid === user.uid) {
+        document.getElementById('welcome').textContent = `Welcome ${u.fullName || 'Agent'}`;
+      }
+    }
+
+    document.getElementById('totalUsers').textContent = totalUsers;
+    document.getElementById('totalDepositUsers').textContent = totalDepositUsers;
+    document.getElementById('totalInvested').textContent = totalInvested.toFixed(2);
+    document.getElementById('totalBalance').textContent = totalBalance.toFixed(2);
+    document.getElementById('totalVestBit').textContent = totalVestBit.toFixed(2);
+  }
+});
+
+  </script>
+</body>
+</html>

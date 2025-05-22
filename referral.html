@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Referral Ranking - Vestinoo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #0d1117;
+      color: #e6edf3;
+    }
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #58a6ff;
+    }
+    .login-box {
+      background-color: #161b22;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: 50px auto;
+    }
+    .login-box input, .login-box button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+    .login-box button {
+      background-color: #238636;
+      color: white;
+      font-weight: bold;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #30363d;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #161b22;
+      color: #58a6ff;
+    }
+    tr:nth-child(even) {
+      background-color: #1c2128;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div id="login" class="login-box">
+    <h2>Login</h2>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="loginUser()">Submit</button>
+  </div>
+
+  <div id="dashboard" style="display: none;">
+    <h1 id="welcome"></h1>
+
+    <h2>Top Users by Total Referrals</h2>
+    <table id="topReferralsTable">
+      <thead>
+      <tr>
+        <th>Full Name</th>
+        <th>Vestinoo ID</th>
+        <th>Total Referrals</th>
+      </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Top Users by Level 1 & Level 2</h2>
+    <table id="topLevelsTable">
+      <thead>
+      <tr>
+        <th>Full Name</th>
+        <th>Referral Level 1</th>
+        <th>Referral Level 2</th>
+      </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module">
+  import { app } from './firebase.js';
+  import {
+    getAuth,
+    signInWithEmailAndPassword,
+    onAuthStateChanged
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+  import {
+    getDatabase,
+    ref,
+    get
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  window.loginUser = function () {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    signInWithEmailAndPassword(auth, email, password)
+      .then(() => location.reload())
+      .catch(error => alert(error.message));
+  };
+
+  onAuthStateChanged(auth, async user => {
+    if (!user) return;
+
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    const snapshot = await get(ref(db, 'users'));
+    const users = snapshot.val() || {};
+
+    const referralMap = {};
+    const levelMap = [];
+    const userData = [];
+    let currentUserName = "";
+
+    for (const uid in users) {
+      const u = users[uid];
+      if (uid === user.uid) currentUserName = u.fullName;
+      const referralCode = u.referralCode;
+      referralMap[referralCode] = referralMap[referralCode] || [];
+      levelMap.push({
+        fullName: u.fullName,
+        level1: parseInt(u.level1 || 0),
+        level2: parseInt(u.level2 || 0)
+      });
+    }
+
+    for (const uid in users) {
+      const refBy = users[uid].referralBy;
+      const lvl2RefBy = users[uid].level2ReferralBy;
+      if (refBy) referralMap[refBy] = (referralMap[refBy] || []).concat(uid);
+      if (lvl2RefBy) referralMap[lvl2RefBy] = (referralMap[lvl2RefBy] || []).concat(uid);
+    }
+
+    const ranking = Object.entries(users).map(([uid, u]) => {
+      const referrals = (referralMap[u.referralCode] || []).length;
+      return {
+        fullName: u.fullName,
+        vestinooID: u.vestinooID,
+        referrals
+      };
+    }).sort((a, b) => b.referrals - a.referrals);
+
+    const tbody1 = document.querySelector('#topReferralsTable tbody');
+    ranking.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${u.fullName}</td><td>${u.vestinooID}</td><td>${u.referrals}</td>`;
+      tbody1.appendChild(tr);
+    });
+
+    levelMap.sort((a, b) => (b.level1 + b.level2) - (a.level1 + a.level2));
+    const tbody2 = document.querySelector('#topLevelsTable tbody');
+    levelMap.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${u.fullName}</td><td>${u.level1}</td><td>${u.level2}</td>`;
+      tbody2.appendChild(tr);
+    });
+
+    document.getElementById('welcome').innerText = `Welcome ${currentUserName} Agent,`;
+  });
+</script>
+</body>
+</html>
