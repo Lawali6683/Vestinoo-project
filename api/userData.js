@@ -171,6 +171,7 @@ module.exports = async (req, res) => {
       userBalance: 0,
       deposit: 0,
       dailyProfit: 0,
+      taskBonus: 0,
       vestBit: 0,
       tsohonUser: "false",
       depositTime: null,
