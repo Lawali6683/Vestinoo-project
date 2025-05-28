@@ -1,8 +1,8 @@
 const https = require("https");
 
-const API_AUTH_KEY = process.env.API_AUTH_KEY;
-const ADGEM_API_TOKEN = process.env.ADGEM_API_TOKEN;
-const ADGEM_APP_ID = process.env.ADGEM_APP_ID;
+const API_AUTH_KEY = process.env.API_AUTH_KEY; // your backend verification key
+const ADGEM_API_TOKEN = process.env.ADGEM_API_TOKEN; // AdGem Bearer token
+const ADGEM_APP_ID = process.env.ADGEM_APP_ID; // Your AdGem app ID
 const VERCEL_LOG = console.log;
 
 module.exports = async (req, res) => {
@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
 
   if (req.method === "OPTIONS") return res.status(204).end();
 
-  // 🔒 Security check
+  // 🔐 Check backend API key
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_AUTH_KEY) {
     return res.status(401).json({ error: "Unauthorized request" });
@@ -23,20 +23,21 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { email } = req.body;
+    const { uid } = req.body;
 
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Invalid or missing email" });
+    if (!uid || typeof uid !== "string") {
+      return res.status(400).json({ error: "Invalid or missing UID" });
     }
 
-    const encodedEmail = encodeURIComponent(email.trim().toLowerCase());
-    const url = `https://api.adgem.com/v1/offers?appid=${ADGEM_APP_ID}&user_id=${encodedEmail}`;
+    const encodedUID = encodeURIComponent(uid.trim());
+
+    const url = `https://api.adgem.com/v1/offers?appid=${ADGEM_APP_ID}&user_id=${encodedUID}`;
 
     https.get(
       url,
       {
         headers: {
-          Authorization: `Token token=${ADGEM_API_TOKEN}`,
+          Authorization: `Bearer ${ADGEM_API_TOKEN}`,
           Accept: "application/json",
         },
       },
