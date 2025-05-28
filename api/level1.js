@@ -32,10 +32,10 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { uid, referralBonusLeve1 } = req.body;
+    const { uid, referralBonusLeve1, referralBonussLeve2 } = req.body;
 
-    if (!uid || typeof referralBonusLeve1 !== "number") {
-      return res.status(400).json({ error: "Missing or invalid uid or referralBonusLeve1" });
+    if (!uid) {
+      return res.status(400).json({ error: "Missing uid" });
     }
 
     const userRef = db.ref(`users/${uid}`);
@@ -47,16 +47,32 @@ module.exports = async (req, res) => {
 
     const userData = snapshot.val();
     const currentBalance = typeof userData.userBalance === "number" ? userData.userBalance : 0;
-  
-    await userRef.update({
-      referralBonusLeve1: 0,
-      userBalance: +(currentBalance + referralBonusLeve1).toFixed(2),
-    });
 
-    return res.status(200).json({ message: "Level 1 bonus transferred successfully." });
+    // Prepare update object
+    const updates = {};
+    let bonusAmount = 0;
+    let message = "";
+
+    if (typeof referralBonusLeve1 === "number") {
+      bonusAmount = referralBonusLeve1;
+      updates.referralBonusLeve1 = 0;
+      message = "Level 1 bonus transferred successfully.";
+    } else if (typeof referralBonussLeve2 === "number") {
+      bonusAmount = referralBonussLeve2;
+      updates.referralBonussLeve2 = 0;
+      message = "Level 2 bonus transferred successfully.";
+    } else {
+      return res.status(400).json({ error: "Missing or invalid bonus amount" });
+    }
+
+    updates.userBalance = +(currentBalance + bonusAmount).toFixed(2);
+
+    await userRef.update(updates);
+
+    return res.status(200).json({ message });
 
   } catch (error) {
-    console.error("Level1 API error:", error);
+    console.error("Bonus transfer error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
