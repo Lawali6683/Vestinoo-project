@@ -25,7 +25,6 @@ module.exports = async (req, res) => {
   try {
     const { uid, country_codes, platform, categories, tracking_types } = req.body;
 
-    // Debug input
     console.log("📥 Incoming Request Body:", JSON.stringify(req.body, null, 2));
 
     if (!uid || typeof uid !== "string") {
@@ -42,18 +41,13 @@ module.exports = async (req, res) => {
       }
     };
 
-    appendParam("country_codes", country_codes || "US,GB");
+    appendParam("country_codes", country_codes || "US,GB,NG");
     appendParam("platform", platform || "android");
     appendParam("categories", categories || "app,survey");
     appendParam("tracking_types", tracking_types || "CPI,Survey");
 
-    // Debug full URL and headers
     console.log("📡 Sending Request to AdGem:");
     console.log("🔗 URL:", adgemUrl);
-    console.log("📨 Headers:", {
-      Authorization: `Bearer ${ADGEM_API_TOKEN}`,
-      Accept: "application/json"
-    });
 
     https.get(
       adgemUrl,
@@ -80,7 +74,7 @@ module.exports = async (req, res) => {
               console.log("❌ Invalid response structure from AdGem:", json);
               return res.status(502).json({
                 error: "Invalid AdGem response format",
-                adgemResponse: json
+                adgemResponse: json,
               });
             }
 
@@ -99,13 +93,15 @@ module.exports = async (req, res) => {
 
             console.log(`✅ Successfully fetched ${offers.length} offers`);
 
+            res.setHeader("Content-Type", "application/json");
             return res.status(200).json({ offers, rawResponse: json });
+
           } catch (parseErr) {
             console.log("❌ Error parsing AdGem JSON:", parseErr.message);
             return res.status(502).json({
               error: "Failed to parse JSON from AdGem",
               rawResponse: data,
-              details: parseErr.message
+              details: parseErr.message,
             });
           }
         });
@@ -114,14 +110,15 @@ module.exports = async (req, res) => {
       console.log("❌ HTTPS Error contacting AdGem:", err);
       return res.status(502).json({
         error: "Failed to fetch from AdGem",
-        details: err.message
+        details: err.message,
       });
     });
+
   } catch (err) {
     console.log("❌ Unexpected Server Error:", err);
     return res.status(500).json({
       error: "Unexpected server error",
-      details: err.message
+      details: err.message,
     });
   }
 };
