@@ -15,21 +15,16 @@ module.exports = async (req, res) => {
     return res.status(204).end();
   }
 
-  // Validate method
   if (req.method !== "POST") {
     VERCEL_LOG("Invalid method:", req.method);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Validate API key
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_AUTH_KEY) {
     VERCEL_LOG("Unauthorized access attempt");
     return res.status(401).json({ error: "Unauthorized request" });
   }
-
-  // Log incoming request
-  VERCEL_LOG("Incoming body:", req.body);
 
   const { uid, ip, country } = req.body;
 
@@ -42,27 +37,46 @@ module.exports = async (req, res) => {
 
   VERCEL_LOG("Sending request to KiwiWall API:", apiUrl);
 
-  https.get(apiUrl, (kiwiRes) => {
-    let data = "";
+  try {
+    // Using native https request with a Promise wrapper
+    const fetchKiwiOffers = (url) => {
+      return new Promise((resolve, reject) => {
+        https.get(url, (kiwiRes) => {
+          let data = "";
+          kiwiRes.on("data", (chunk) => {
+            data += chunk;
+          });
+          kiwiRes.on("end", () => {
+            resolve(data);
+          });
+        }).on("error", (err) => {
+          reject(err);
+        });
+      });
+    };
 
-    kiwiRes.on("data", (chunk) => {
-      data += chunk;
-    });
+    const rawResponse = await fetchKiwiOffers(apiUrl);
+    VERCEL_LOG("Raw response from KiwiWall:", rawResponse);
 
-    kiwiRes.on("end", () => {
-      VERCEL_LOG("Raw response from KiwiWall:", data);
+    // Try parsing JSON safely
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(rawResponse);
+    } catch (err) {
+      VERCEL_LOG("JSON Parse error:", err.message);
+      return res.status(502).json({ error: "Failed to parse response from KiwiWall", raw: rawResponse });
+    }
 
-      try {
-        const parsed = JSON.parse(data);
-        VERCEL_LOG("Parsed response from KiwiWall:", parsed);
-        res.status(200).json(parsed);
-      } catch (error) {
-        VERCEL_LOG("Failed to parse JSON:", error.message);
-        res.status(500).json({ error: "Failed to parse response from KiwiWall" });
-      }
-    });
-  }).on("error", (err) => {
-    VERCEL_LOG("Request error:", err.message);
-    res.status(500).json({ error: "Error contacting KiwiWall", detail: err.message });
-  });
+    if (!parsedResponse || typeof parsedResponse !== "object") {
+      VERCEL_LOG("Unexpected response format");
+      return res.status(502).json({ error: "Invalid response format from KiwiWall", raw: rawResponse });
+    }
+
+    VERCEL_LOG("Successfully parsed response:", parsedResponse);
+    return res.status(200).json(parsedResponse);
+
+  } catch (error) {
+    VERCEL_LOG("Request to KiwiWall failed:", error.message);
+    return res.status(500).json({ error: "Internal server error contacting KiwiWall", detail: error.message });
+  }
 };
