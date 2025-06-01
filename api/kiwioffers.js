@@ -1,7 +1,7 @@
 const https = require("https");
 
-const KIWI_API_KEY = process.env.KIWI_API_KEY; // example: Kn0z2rkWet0KfIS35H6hwYh9tL1ZMT
-const API_AUTH_KEY = process.env.API_AUTH_KEY; // your custom backend key for security
+const KIWI_API_KEY = process.env.KIWI_API_KEY;
+const API_AUTH_KEY = process.env.API_AUTH_KEY;
 
 const VERCEL_LOG = console.log;
 
@@ -14,23 +14,26 @@ module.exports = async (req, res) => {
 
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_AUTH_KEY) {
+    VERCEL_LOG("[Unauthorized Access]:", authHeader);
     return res.status(401).json({ error: "Unauthorized request" });
   }
 
   if (req.method !== "POST") {
+    VERCEL_LOG("[Invalid Method]:", req.method);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const { uid, ip_address } = req.body;
+    VERCEL_LOG("[Incoming Request Body]:", req.body);
 
     if (!uid || !ip_address) {
+      VERCEL_LOG("[Missing Fields]:", { uid, ip_address });
       return res.status(400).json({ error: "Missing uid or ip_address" });
     }
 
     const apiUrl = `https://www.kiwiwall.com/get-offers/${KIWI_API_KEY}/?s=${uid}&ip_address=${ip_address}`;
-
-    VERCEL_LOG("[KiwiWall Request]:", apiUrl);
+    VERCEL_LOG("[KiwiWall Request URL]:", apiUrl);
 
     https.get(apiUrl, (apiRes) => {
       let data = "";
@@ -40,22 +43,24 @@ module.exports = async (req, res) => {
       });
 
       apiRes.on("end", () => {
+        VERCEL_LOG("[Raw Response from KiwiWall]:", data);
+
         try {
           const parsed = JSON.parse(data);
-          VERCEL_LOG("[KiwiWall Response]:", parsed);
+          VERCEL_LOG("[Parsed KiwiWall Response]:", parsed);
           res.status(200).json(parsed);
-        } catch (error) {
-          VERCEL_LOG("[KiwiWall JSON Parse Error]:", error);
-          res.status(500).json({ error: "Invalid JSON from KiwiWall" });
+        } catch (parseError) {
+          VERCEL_LOG("[JSON Parse Error]:", parseError.message);
+          return res.status(500).json({ error: "Failed to parse KiwiWall response", detail: parseError.message });
         }
       });
-    }).on("error", (error) => {
-      VERCEL_LOG("[KiwiWall Request Error]:", error);
-      res.status(500).json({ error: "Failed to fetch offers from KiwiWall" });
+    }).on("error", (requestError) => {
+      VERCEL_LOG("[KiwiWall Request Error]:", requestError.message);
+      return res.status(500).json({ error: "Failed to fetch offers from KiwiWall", detail: requestError.message });
     });
 
   } catch (error) {
-    VERCEL_LOG("[Unhandled Error]:", error);
-    res.status(500).json({ error: "Internal server error" });
+    VERCEL_LOG("[Unexpected Server Error]:", error.message);
+    return res.status(500).json({ error: "Internal server error", detail: error.message });
   }
 };
