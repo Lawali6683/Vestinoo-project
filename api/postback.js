@@ -1,14 +1,13 @@
 const admin = require("firebase-admin");
-const CryptoJS = require("crypto-js");
+const crypto = require("crypto");
 
-const API_AUTH_KEY = process.env.API_AUTH_KEY;
-const POSTBACK_KEY = process.env.ADGEM_POSTBACK_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
   : null;
+const KIWI_SECRET_KEY = process.env.KIWI_SECRET_KEY;
 
-if (!admin.apps.length) {
+if (!admin.apps.length && SERVICE_ACCOUNT) {
   admin.initializeApp({
     credential: admin.credential.cert(SERVICE_ACCOUNT),
     databaseURL: FIREBASE_DATABASE_URL,
@@ -16,80 +15,79 @@ if (!admin.apps.length) {
 }
 
 const db = admin.database();
+const VERCEL_LOG = console.log;
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
+  const {
+    status,
+    trans_id,
+    sub_id,
+    amount,
+    offer_name,
+    signature,
+    ip_address,
+  } = req.query;
 
-  if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  VERCEL_LOG("Received KiwiWall postback:", req.query);
+
+  // Validate required fields
+  if (
+    !status ||
+    !trans_id ||
+    !sub_id ||
+    !amount ||
+    !offer_name ||
+    !signature
+  ) {
+    return res.status(400).json({ error: "Missing required postback data" });
+  }
+
+  // Only process successful conversions
+  if (status !== "1") {
+    VERCEL_LOG(`Postback not successful (status=${status})`);
+    return res.status(200).json({ message: "Postback ignored due to non-success status" });
+  }
 
   try {
-    // Step 1: Get full request URL for verification
-    const protocol = req.connection.encrypted ? "https" : "http";
-    const fullUrl = new URL(protocol + "://" + req.headers.host + req.url);
+    // Validate signature
+    const rawSignature = `${sub_id}:${amount}:${KIWI_SECRET_KEY}`;
+    const expectedSignature = crypto.createHash("md5").update(rawSignature).digest("hex");
 
-    // Step 2: Extract and remove verifier
-    const verifier = fullUrl.searchParams.get("verifier");
-    if (!verifier) {
-      return res.status(422).send("Error: missing verifier");
-    }
-    fullUrl.searchParams.delete("verifier");
-
-    // Step 3: Verify request integrity
-    const hash = CryptoJS.HmacSHA256(fullUrl.href, POSTBACK_KEY).toString(CryptoJS.enc.Hex);
-    if (hash !== verifier) {
-      return res.status(422).send("Error: invalid verifier");
+    if (expectedSignature !== signature) {
+      VERCEL_LOG("Invalid signature:", { expectedSignature, received: signature });
+      return res.status(403).json({ error: "Invalid signature" });
     }
 
-    // Step 4: Extract user data
-    const uid = fullUrl.searchParams.get("uid");
-    const payout = parseFloat(fullUrl.searchParams.get("payout"));
-    const offer = fullUrl.searchParams.get("offer");
-    const transaction = fullUrl.searchParams.get("transaction");
+    // Check if user exists
+    const userRef = db.ref(`users/${sub_id}`);
+    const snapshot = await userRef.once("value");
+    const userData = snapshot.val();
 
-    if (!uid || !payout || !offer || !transaction) {
-      return res.status(400).json({ error: "Missing required parameters" });
-    }
-
-    const rewardRef = db.ref(`users/${uid}`);
-    const txFlagRef = db.ref(`adgem_postbacks/${transaction}`);
-
-    // Step 5: Check if transaction already processed
-    const alreadyProcessed = await txFlagRef.once("value");
-    if (alreadyProcessed.exists()) {
-      return res.status(200).send("Transaction already processed");
-    }
-
-    // Step 6: Apply payout (50% of payout value)
-    const bonusToAdd = payout / 2;
-    const snapshot = await rewardRef.once("value");
-
-    if (!snapshot.exists()) {
+    if (!userData) {
+      VERCEL_LOG("User not found in database:", sub_id);
       return res.status(404).json({ error: "User not found" });
     }
 
-    const userData = snapshot.val();
-    const currentBonus = parseFloat(userData.taskBonus) || 0;
-    await rewardRef.update({ taskBonus: currentBonus + bonusToAdd });
-
-    // Step 7: Mark transaction as processed
-    await txFlagRef.set({ status: "completed", timestamp: Date.now() });
-
-    return res.status(200).send("OK");
-  } catch (err) {
-    console.error("❌ Postback error:", err);
-    try {
-      const fallbackId = `failed_${Date.now()}`;
-      await db.ref(`adgem_failed_postbacks/${fallbackId}`).set({
-        error: err.message,
-        url: req.url,
-        timestamp: Date.now(),
-      });
-    } catch (logError) {
-      console.error("❌ Failed to log fallback postback:", logError);
+    // Parse and calculate bonus
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount)) {
+      return res.status(400).json({ error: "Invalid amount format" });
     }
-    return res.status(500).send("Server error");
+
+    const bonusToAdd = numericAmount / 2;
+    const taskBonusPath = `users/${sub_id}/taskBonus`;
+
+    const currentBonusSnapshot = await db.ref(taskBonusPath).once("value");
+    const currentBonus = currentBonusSnapshot.val() || 0;
+
+    const updatedBonus = currentBonus + bonusToAdd;
+    await db.ref(taskBonusPath).set(updatedBonus);
+
+    VERCEL_LOG(`✅ User ${sub_id} credited with bonus: ${bonusToAdd} (total: ${updatedBonus}) from offer: ${offer_name} | IP: ${ip_address}`);
+
+    return res.status(200).json({ success: true, credited: bonusToAdd, total: updatedBonus });
+  } catch (error) {
+    VERCEL_LOG("Postback processing error:", error);
+    return res.status(500).json({ error: "Internal server error", detail: error.message });
   }
 };
