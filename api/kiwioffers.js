@@ -6,7 +6,8 @@ const KIWI_API_KEY = process.env.KIWI_API_KEY;
 const VERCEL_LOG = (...args) => console.log("[KIWI_POSTBACK]", ...args);
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
+  // 🛠 Cire takurawar domain domin test daga local
+  res.setHeader("Access-Control-Allow-Origin", "*"); // A lokacin gwaji ne kawai, kar a bar haka a production
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
