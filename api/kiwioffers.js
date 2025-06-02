@@ -33,32 +33,25 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Missing required fields: uid and ip" });
   }
 
-  const apiUrl = `https://www.kiwiwall.com/get-offers/${KIWI_API_KEY}/?s=${uid}&ip_address=${ip}${country ? `&country=${country}` : ""}`;
+  const trimmedCountry = (country || "").trim();
+  const apiUrl = `https://www.kiwiwall.com/get-offers/${KIWI_API_KEY}/?s=${uid}&ip_address=${ip}${trimmedCountry ? `&country=${trimmedCountry}` : ""}`;
 
   VERCEL_LOG("Sending request to KiwiWall API:", apiUrl);
 
   try {
-    // Using native https request with a Promise wrapper
     const fetchKiwiOffers = (url) => {
       return new Promise((resolve, reject) => {
         https.get(url, (kiwiRes) => {
           let data = "";
-          kiwiRes.on("data", (chunk) => {
-            data += chunk;
-          });
-          kiwiRes.on("end", () => {
-            resolve(data);
-          });
-        }).on("error", (err) => {
-          reject(err);
-        });
+          kiwiRes.on("data", (chunk) => data += chunk);
+          kiwiRes.on("end", () => resolve(data));
+        }).on("error", (err) => reject(err));
       });
     };
 
     const rawResponse = await fetchKiwiOffers(apiUrl);
     VERCEL_LOG("Raw response from KiwiWall:", rawResponse);
 
-    // Try parsing JSON safely
     let parsedResponse;
     try {
       parsedResponse = JSON.parse(rawResponse);
