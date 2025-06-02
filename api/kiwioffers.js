@@ -57,18 +57,10 @@ module.exports = async (req, res) => {
       return res.status(200).json({ message: "No offers found" });
     }
 
-    // Raba zuwa kashi-kashi (batches)
-    const batchSize = 25;
-    const batches = [];
-    for (let i = 0; i < offers.length; i += batchSize) {
-      batches.push(offers.slice(i, i + batchSize));
-    }
-
     return res.status(200).json({
       uid,
       totalOffers: offers.length,
-      batchCount: batches.length,
-      batches // => frontend zai karɓi batches[n] daya bayan daya
+      offers // => dukkan offers a lokaci guda
     });
 
   } catch (error) {
