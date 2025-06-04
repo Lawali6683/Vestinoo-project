@@ -7,7 +7,8 @@ const KIWI_API_KEY = process.env.KIWI_API_KEY;
 const VERCEL_LOG = (...args) => console.log("[KIWI_POSTBACK]", ...args);
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://vestinoo.pages.dev");
+  // Allow all domains (remove domain check for local/dev)
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 
@@ -27,14 +28,17 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: "Unauthorized request" });
   }
 
-  const { uid, ip, country, city, countryLang } = req.body;
+  // Log the full request body for debugging
+  VERCEL_LOG("Received request body:", req.body);
+
+  const { uid, ip, country, city, countryLang } = req.body || {};
 
   if (!uid || !ip) {
     VERCEL_LOG("Missing uid or ip:", { uid, ip });
     return res.status(400).json({ error: "Missing required fields: uid and ip" });
   }
 
-  // Prepare API URL
+  // Prepare API URL with all required params (leave city/countryLang for logging only)
   const apiUrl = `https://www.kiwiwall.com/get-offers/${KIWI_API_KEY}/?s=${encodeURIComponent(uid)}&ip_address=${encodeURIComponent(ip)}${country ? `&country=${encodeURIComponent(country)}` : ""}`;
 
   VERCEL_LOG("Sending request to KiwiWall API:", apiUrl);
@@ -66,12 +70,19 @@ module.exports = async (req, res) => {
       parsedResponse = JSON.parse(rawResponse);
     } catch (err) {
       VERCEL_LOG("JSON Parse error:", err.message);
-      return res.status(502).json({ error: "Failed to parse response from KiwiWall", raw: rawResponse });
+      return res.status(502).json({
+        error: "Failed to parse response from KiwiWall",
+        raw: rawResponse,
+        detail: err.message
+      });
     }
 
     if (!parsedResponse || typeof parsedResponse !== "object") {
       VERCEL_LOG("Unexpected response format");
-      return res.status(502).json({ error: "Invalid response format from KiwiWall", raw: rawResponse });
+      return res.status(502).json({
+        error: "Invalid response format from KiwiWall",
+        raw: rawResponse
+      });
     }
 
     // Defensive code: always return a fixed structure with batches array
@@ -85,7 +96,7 @@ module.exports = async (req, res) => {
       offers = parsedResponse;
     } else if (parsedResponse.results && Array.isArray(parsedResponse.results)) {
       offers = parsedResponse.results;
-    } // fallback for unknown structure
+    }
 
     // Defensive: If offers is not array, wrap as empty
     if (!Array.isArray(offers)) offers = [];
@@ -100,6 +111,14 @@ module.exports = async (req, res) => {
     // If there are no offers, always return batches as []
     VERCEL_LOG(`Returning ${batches.length} batches (${offers.length} offers)`);
 
+    // Log the result to help debugging on the frontend
+    VERCEL_LOG("Returning response:", {
+      batchesCount: batches.length,
+      offersCount: offers.length,
+      country, city, countryLang,
+      rawApiType: parsedResponse.type || "",
+    });
+
     return res.status(200).json({
       batches,
       offersCount: offers.length,
@@ -107,6 +126,7 @@ module.exports = async (req, res) => {
       city: city || "",
       countryLang: countryLang || "",
       rawApiType: parsedResponse.type || "",
+      rawApi: parsedResponse, // Debug: expose full API result for troubleshooting
       ok: true
     });
   } catch (error) {
