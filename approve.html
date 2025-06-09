@@ -232,56 +232,58 @@
     snapshot.forEach((userSnap) => {
       const userId = userSnap.key;
       const userData = userSnap.val();
-      const withdrawal = userData.approvedWithdrawals;
+      const approvedWithdrawals = userData.approvedWithdrawals;
 
-      if (withdrawal) {
-        found = true;
-        const timeNow = Date.now();
-        const withdrawTime = withdrawal.withdrawalTime || 0;
-        const hoursDiff = (timeNow - withdrawTime) / (1000 * 60 * 60);
-        const isOverdue = hoursDiff > 24;
+      if (approvedWithdrawals) {
+        Object.entries(approvedWithdrawals).forEach(([withdrawalId, withdrawal]) => {
+          found = true;
+          const timeNow = Date.now();
+          const withdrawTime = withdrawal.withdrawalTime || 0;
+          const hoursDiff = (timeNow - withdrawTime) / (1000 * 60 * 60);
+          const isOverdue = hoursDiff > 24;
 
-        const box = document.createElement("div");
-        box.className = `withdraw-box ${isOverdue ? 'overdue' : ''}`;
-        box.setAttribute("data-user", userId);
+          const box = document.createElement("div");
+          box.className = `withdraw-box ${isOverdue ? 'overdue' : ''}`;
+          box.setAttribute("data-user", userId);
 
-        const infoHTML = `
-          <div class="withdraw-info">
-            <span><strong>#${count++}</strong> ${userData.fullName} (${userId})</span>
-            <span>Email: ${userData.email}</span>
-            <span>Vestino ID: ${userData.vestinoID}</span>
-            <span>XaiGate ID: ${userData.xaigateUserId}</span>
-            <span>Amount: $${withdrawal.amount.toFixed(2)}</span>
-            <span>Wallet: ${withdrawal.walletAddress}</span>
-            <span>Coin: ${withdrawal.coin}</span>
-            <span>Network ID: ${withdrawal.networkId}</span>
-            <span>Deposit: $${userData.deposit || 0}</span>
-            <span>Daily Profit: $${userData.dailyProfit || 0}</span>
-            <span>User Balance: $${userData.userBalance || 0}</span>
-            <span>Level1: ${userData.level1 || 0}</span>
-            <span>Level2: ${userData.level2 || 0}</span>
-            <span>Requested: ${new Date(withdrawal.withdrawalTime).toLocaleString()}</span>
-          </div>
-          <div class="actions">
-            <button class="btn cancel">❌ Cancel</button>
-            <button class="btn approve">✔️ Approve</button>
-          </div>
-        `;
-        box.innerHTML = infoHTML;
-        withdrawContainer.appendChild(box);
-        noRequests.style.display = "none";
+          const infoHTML = `
+            <div class="withdraw-info">
+              <span><strong>#${count++}</strong> ${userData.fullName} (${userId})</span>
+              <span>Email: ${userData.email}</span>
+              <span>Vestino ID: ${userData.vestinooID}</span>
+              <span>XaiGate ID: ${userData.xaigateUserId}</span>
+             <span>Amount: $${parseFloat(withdrawal.amount || 0).toFixed(2)}</span>
+              <span>Wallet: ${withdrawal.walletAddress}</span>
+              <span>Coin: ${withdrawal.coin}</span>
+              <span>Network ID: ${withdrawal.networkId}</span>
+              <span>Deposit: $${userData.deposit || 0}</span>
+              <span>Daily Profit: $${userData.dailyProfit || 0}</span>
+              <span>User Balance: $${userData.userBalance || 0}</span>
+              <span>Level1: ${userData.level1 || 0}</span>
+              <span>Level2: ${userData.level2 || 0}</span>
+              <span>Requested: ${new Date(withdrawal.withdrawalTime).toLocaleString()}</span>
+            </div>
+            <div class="actions">
+              <button class="btn cancel">❌ Cancel</button>
+              <button class="btn approve">✔️ Approve</button>
+            </div>
+          `;
+          box.innerHTML = infoHTML;
+          withdrawContainer.appendChild(box);
+          noRequests.style.display = "none";
 
-        box.querySelector(".cancel").onclick = () => handleCancel(userId, box);
-        box.querySelector(".approve").onclick = () => handleApprove(userId, userData, withdrawal, box);
+          box.querySelector(".cancel").onclick = () => handleCancel(userId, withdrawalId, box);
+          box.querySelector(".approve").onclick = () => handleApprove(userId, userData, withdrawal, withdrawalId, box);
+        });
       }
     });
 
     if (!found) noRequests.style.display = "block";
   }
 
-  function handleCancel(userId, box) {
+  function handleCancel(userId, withdrawalId, box) {
     if (confirm(`${currentAgent}, are you sure you want to delete this request?`)) {
-      remove(ref(db, `users/${userId}/approvedWithdrawals`)).then(() => {
+      remove(ref(db, `users/${userId}/approvedWithdrawals/${withdrawalId}`)).then(() => {
         box.remove();
         checkEmpty();
         alert("Request deleted.");
@@ -289,7 +291,7 @@
     }
   }
 
-  async function handleApprove(userId, userData, withdrawal, box) {
+  async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
     if (!confirm(`${currentAgent}, approve and pay this user?`)) return;
 
     try {
@@ -308,7 +310,7 @@
         })
       });
 
-       const result = await response.json();
+      const result = await response.json();
       if (!response.ok || result.error) {
         alert("Backend error: " + (result.message || "Unknown error"));
         return;
@@ -330,8 +332,8 @@
         withdrawalTime: Date.now()
       };
 
-      // Remove approvedWithdrawals
-      updates[`users/${userId}/approvedWithdrawals`] = null;
+      // Remove this specific withdrawal request
+      updates[`users/${userId}/approvedWithdrawals/${withdrawalId}`] = null;
 
       // Update total withdrawal
       const oldTotal = parseFloat(userData.totallyWithdraw || 0);
