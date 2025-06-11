@@ -1,4 +1,3 @@
-// /api/xai-webhook.js
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
@@ -42,6 +41,7 @@ module.exports = async (req, res) => {
 
   try {
     const data = req.body;
+    console.log("📥 Incoming Webhook Data:", JSON.stringify(data)); // <-- Sabon log
     const {
       transaction_id,
       status,
@@ -53,7 +53,10 @@ module.exports = async (req, res) => {
       userId,
     } = data;
 
-    if (status !== "confirmed") return res.status(200).send("Ignored - Not confirmed");
+    if (status !== "confirmed") {
+      console.log("⏩ Transaction not confirmed, skipping...");
+      return res.status(200).send("Ignored - Not confirmed");
+    }
 
     const logsRef = db.ref("/xaiWebhookLogs/" + transaction_id);
     const logSnap = await logsRef.once("value");
@@ -70,6 +73,7 @@ module.exports = async (req, res) => {
 
     if (!matchedUser) {
       await logsRef.set({ error: true, reason: "User not found", data });
+      console.log("❌ User not found for userId:", userId);
       return res.status(400).send("User not found");
     }
 
@@ -79,29 +83,26 @@ module.exports = async (req, res) => {
     const paymentAmount = parseAmount(amount);
     const newTotal = depositAmount + paymentAmount;
 
-    // Determine best plan that does not exceed newTotal
-    const selectedPlan = plans.find((plan) => newTotal >= plan.amount) || null;
-    const plan = [...plans].reverse().find((p) => newTotal >= p.amount);
+    const selectedPlan = [...plans].reverse().find((p) => newTotal >= p.amount);
 
     const updates = {};
     updates["/users/" + uid + "/deposit"] = toDollars(newTotal);
     updates["/users/" + uid + "/lastDepositTx"] = txid;
 
-    if (plan) {
-      updates["/users/" + uid + "/dailyProfit"] = toDollars(plan.dailyProfit);
+    if (selectedPlan) {
+      updates["/users/" + uid + "/dailyProfit"] = toDollars(selectedPlan.dailyProfit);
       updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
     }
 
-    // Referral bonuses if new user
-    if (user.tsohonUser === "false") {
-      updates["/users/" + uid + "/tsohonUser"] = "yes";
+    // Referral check
+    if (user.tsohonUser !== "yes") {
+      updates["/users/" + uid + "/tsohonUser"] = "yes"; // ← Maida kowa tsohonUser bayan an biya
 
       if (user.referralBy) {
         snapshot.forEach((refUser) => {
           if (refUser.val().referralCode === user.referralBy) {
             const refUid = refUser.key;
             const refVal = refUser.val();
-
             const currentBonus = parseAmount(refVal.referralBonusLeve1 || "$0.00");
             const currentCount = parseInt(refVal.level1 || "0");
             const bonus = paymentAmount * 0.08;
@@ -116,7 +117,6 @@ module.exports = async (req, res) => {
           if (refUser.val().referralCode === user.level2ReferralBy) {
             const refUid = refUser.key;
             const refVal = refUser.val();
-
             const currentBonus = parseAmount(refVal.referralBonussLeve2 || "$0.00");
             const currentCount = parseInt(refVal.level2 || "0");
             const bonus = paymentAmount * 0.10;
@@ -130,10 +130,18 @@ module.exports = async (req, res) => {
     await db.ref().update(updates);
     await logsRef.set({ success: true, data });
 
+    console.log("✅ Deposit processed for user:", uid, "| Amount:", toDollars(paymentAmount));
     res.status(200).send("Deposit processed");
   } catch (err) {
     const fallbackId = crypto.randomUUID();
-    await db.ref("/xaiWebhookErrors/" + fallbackId).set({ error: err.message, full: err.toString(), timestamp: new Date().toISOString() });
+    const fullError = {
+      error: err.message,
+      stack: err.stack,
+      data: req.body,
+      timestamp: new Date().toISOString(),
+    };
+    await db.ref("/xaiWebhookErrors/" + fallbackId).set(fullError);
+    console.error("🚨 Webhook Error:", fullError);
     res.status(500).send("Error processing deposit");
   }
 };
