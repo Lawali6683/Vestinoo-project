@@ -41,29 +41,33 @@ module.exports = async (req, res) => {
 
   try {
     const data = req.body;
-    console.log("📥 Incoming Webhook Data:", JSON.stringify(data)); // <-- Sabon log
+    console.log("==> Webhook data received from XaiGate:");
+    console.log(JSON.stringify(data, null, 2));
+
     const {
-      transaction_id,
-      status,
-      coin,
-      amount,
-      address,
-      txid,
-      timestamp,
+      type,
       userId,
+      amount,
+      status,
+      txid,
+      from,
+      to,
+      symbol,
+      confirmations,
     } = data;
 
-    if (status !== "confirmed") {
-      console.log("⏩ Transaction not confirmed, skipping...");
-      return res.status(200).send("Ignored - Not confirmed");
+    if (type !== "deposit" || status !== "success") {
+      console.log("==> Ignored: not deposit or not success");
+      return res.status(200).send("Ignored - Not deposit or not success");
     }
 
-    const logsRef = db.ref("/xaiWebhookLogs/" + transaction_id);
-    const logSnap = await logsRef.once("value");
-    if (logSnap.exists()) return res.status(200).send("Already processed");
+    const txRef = db.ref("/xaiWebhookLogs/" + txid);
+    const txSnap = await txRef.once("value");
+    if (txSnap.exists()) return res.status(200).send("Already processed");
 
     const usersRef = db.ref("/users");
     const snapshot = await usersRef.once("value");
+
     let matchedUser = null;
     snapshot.forEach((child) => {
       if (child.val().xaigateUserId === userId) {
@@ -72,31 +76,32 @@ module.exports = async (req, res) => {
     });
 
     if (!matchedUser) {
-      await logsRef.set({ error: true, reason: "User not found", data });
-      console.log("❌ User not found for userId:", userId);
+      console.warn("==> User ID not found:", userId);
+      await txRef.set({ error: true, reason: "User not found", data });
       return res.status(400).send("User not found");
     }
 
     const uid = matchedUser.key;
     const user = matchedUser.data;
-    const depositAmount = parseAmount(user.deposit || "$0.00");
     const paymentAmount = parseAmount(amount);
-    const newTotal = depositAmount + paymentAmount;
+    const previousDeposit = parseAmount(user.deposit || "$0.00");
+    const newTotal = previousDeposit + paymentAmount;
 
-    const selectedPlan = [...plans].reverse().find((p) => newTotal >= p.amount);
+    const plan = [...plans].reverse().find((p) => newTotal >= p.amount);
 
-    const updates = {};
-    updates["/users/" + uid + "/deposit"] = toDollars(newTotal);
-    updates["/users/" + uid + "/lastDepositTx"] = txid;
+    const updates = {
+      ["/users/" + uid + "/deposit"]: toDollars(newTotal),
+      ["/users/" + uid + "/lastDepositTx"]: txid,
+    };
 
-    if (selectedPlan) {
-      updates["/users/" + uid + "/dailyProfit"] = toDollars(selectedPlan.dailyProfit);
-      updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
+    if (plan) {
+      updates["/users/" + uid + "/dailyProfit"] = toDollars(plan.dailyProfit);
+      updates["/users/" + uid + "/depositTime"] = new Date().toISOString();
     }
 
-    // Referral check
-    if (user.tsohonUser !== "yes") {
-      updates["/users/" + uid + "/tsohonUser"] = "yes"; // ← Maida kowa tsohonUser bayan an biya
+    // Mark user as tsohonUser and process referral bonuses
+    if (user.tsohonUser === "false") {
+      updates["/users/" + uid + "/tsohonUser"] = "yes";
 
       if (user.referralBy) {
         snapshot.forEach((refUser) => {
@@ -128,20 +133,17 @@ module.exports = async (req, res) => {
     }
 
     await db.ref().update(updates);
-    await logsRef.set({ success: true, data });
+    await txRef.set({ success: true, data });
 
-    console.log("✅ Deposit processed for user:", uid, "| Amount:", toDollars(paymentAmount));
     res.status(200).send("Deposit processed");
   } catch (err) {
+    console.error("==> Webhook Error:", err);
     const fallbackId = crypto.randomUUID();
-    const fullError = {
+    await db.ref("/xaiWebhookErrors/" + fallbackId).set({
       error: err.message,
-      stack: err.stack,
-      data: req.body,
+      full: err.toString(),
       timestamp: new Date().toISOString(),
-    };
-    await db.ref("/xaiWebhookErrors/" + fallbackId).set(fullError);
-    console.error("🚨 Webhook Error:", fullError);
+    });
     res.status(500).send("Error processing deposit");
   }
 };
