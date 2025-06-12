@@ -92,105 +92,132 @@
   </div>
 
   <script type="module">
-      import { app } from './firebase.js';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
-import {
-  getDatabase,
-  ref,
-  get,
-  update,
-} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+  import { app } from './firebase.js';
+  import {
+    getAuth,
+    signInWithEmailAndPassword,
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+  import {
+    getDatabase,
+    ref,
+    get,
+    update,
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
 
-const auth = getAuth(app);
-const db = getDatabase(app);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
 
-// Login handler
-const loginBtn = document.getElementById('loginButton');
-loginBtn.addEventListener('click', async () => {
-  const email = document.getElementById('adminEmail').value;
-  const password = document.getElementById('adminPassword').value;
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-    document.getElementById('loginContainer').classList.add('hidden');
-    document.getElementById('dashboard').classList.remove('hidden');
-  } catch (err) {
-    document.getElementById('loginError').textContent = 'Login Failed!';
-  }
-});
-
-// Search handler
-document.getElementById('searchBtn').addEventListener('click', async () => {
-  const vestinooID = document.getElementById('searchInput').value.trim();
-  if (!vestinooID) return;
-
-  const userRef = ref(db, 'users');
-  const snapshot = await get(userRef);
-  let foundUser = null;
-  let userKey = null;
-
-  snapshot.forEach(child => {
-    const val = child.val();
-    if (val.vestinooID === vestinooID) {
-      foundUser = val;
-      userKey = child.key;
+  // Login handler
+  const loginBtn = document.getElementById('loginButton');
+  loginBtn.addEventListener('click', async () => {
+    const email = document.getElementById('adminEmail').value;
+    const password = document.getElementById('adminPassword').value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      document.getElementById('loginContainer').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+    } catch (err) {
+      document.getElementById('loginError').textContent = 'Login Failed!';
     }
   });
 
-  if (!foundUser) {
-    alert('User not found!');
-    return;
-  }
+  // Search handler
+  document.getElementById('searchBtn').addEventListener('click', async () => {
+    const vestinooID = document.getElementById('searchInput').value.trim();
+    if (!vestinooID) return;
 
-  showUserFields(foundUser, userKey);
-});
+    const userRef = ref(db, 'users');
+    const snapshot = await get(userRef);
+    let foundUser = null;
+    let userKey = null;
 
-// Dynamic form generation
-function showUserFields(data, userKey) {
-  const container = document.getElementById('fieldsContainer');
-  container.innerHTML = '';
-  const editableKeys = Object.keys(data).sort();
-
-  editableKeys.forEach(key => {
-    const value = data[key] ?? '';
-    const safeValue = typeof value === 'number' ? value : String(value);
-    const field = document.createElement('div');
-    field.classList.add('field');
-
-    field.innerHTML = `
-      <label for="${key}">${key}</label>
-      <input type="text" id="${key}" value="${safeValue}" />
-    `;
-    container.appendChild(field);
-  });
-
-  document.getElementById('userDetails').classList.remove('hidden');
-
-  document.getElementById('updateBtn').onclick = async () => {
-    const updates = {};
-    editableKeys.forEach(key => {
-      const val = document.getElementById(key).value;
-      if (val === '') {
-        updates[key] = null;
-      } else if (!isNaN(val) && key !== 'vestinooID') {
-        updates[key] = parseFloat(val);
-      } else {
-        updates[key] = val;
+    snapshot.forEach(child => {
+      const val = child.val();
+      if (val.vestinooID === vestinooID) {
+        foundUser = val;
+        userKey = child.key;
       }
     });
 
-    try {
-      await update(ref(db, 'users/' + userKey), updates);
-      document.getElementById('updateMessage').textContent = 'Updated successfully!';
-      document.getElementById('userDetails').classList.add('hidden');
-    } catch (err) {
-      document.getElementById('updateMessage').textContent = 'Error updating data!';
+    if (!foundUser) {
+      alert('User not found!');
+      return;
     }
-  };
-}
 
-  </script>
+    showUserFields(foundUser, userKey);
+  });
+
+  // Dynamic form generation
+  function showUserFields(data, userKey) {
+    const container = document.getElementById('fieldsContainer');
+    container.innerHTML = '';
+    const editableKeys = Object.keys(data).sort();
+
+    editableKeys.forEach(key => {
+      const value = data[key] ?? '';
+      const safeValue = typeof value === 'number' ? value : String(value);
+      const field = document.createElement('div');
+      field.classList.add('field');
+
+      field.innerHTML = `
+        <label for="${key}">${key}</label>
+        <input type="text" id="${key}" value="${safeValue}" />
+      `;
+      container.appendChild(field);
+    });
+
+    // Set depositTime automatically if deposit exists
+    const deposit = parseFloat(data.deposit);
+    const depositTime = data.depositTime;
+
+    if (!isNaN(deposit) && deposit > 0 && (depositTime === null || depositTime === undefined)) {
+      const currentTime = Date.now();
+      update(ref(db, 'users/' + userKey), { depositTime: currentTime })
+        .then(() => console.log('✅ depositTime set automatically.'))
+        .catch(err => console.error('❌ Failed to set depositTime:', err));
+    }
+
+    document.getElementById('userDetails').classList.remove('hidden');
+
+    document.getElementById('updateBtn').onclick = async () => {
+      const updates = {};
+      let changed = false;
+
+      editableKeys.forEach(key => {
+        const input = document.getElementById(key);
+        const originalVal = data[key];
+        let newVal = input.value;
+
+        // Convert numeric values
+        if (!isNaN(newVal) && newVal.trim() !== '' && key !== 'vestinooID') {
+          newVal = parseFloat(newVal);
+        }
+
+        // Check for changes only
+        const originalStr = originalVal === undefined || originalVal === null ? '' : String(originalVal);
+        const newStr = newVal === undefined || newVal === null ? '' : String(newVal);
+
+        if (originalStr !== newStr) {
+          updates[key] = newVal;
+          changed = true;
+        }
+      });
+
+      if (!changed) {
+        document.getElementById('updateMessage').textContent = 'No changes detected.';
+        return;
+      }
+
+      try {
+        await update(ref(db, 'users/' + userKey), updates);
+        document.getElementById('updateMessage').textContent = 'Updated successfully!';
+        document.getElementById('userDetails').classList.add('hidden');
+      } catch (err) {
+        document.getElementById('updateMessage').textContent = 'Error updating data!';
+      }
+    };
+  }
+</script>
+
 </body>
 </html>
