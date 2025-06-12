@@ -157,7 +157,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // STEP 3: Save to Firebase with addresses at root level
     const userData = {
       fullName,
       email: normalizedEmail,
@@ -180,12 +179,47 @@ module.exports = async (req, res) => {
       referralBonussLeve2: 0,
       level1: "0",
       level2: "0",
+      referralRegisterLevel1: 0,
+      referralRegisterLevel2: 0,
       xaigateUserId,
       createdAt,
       ...wallets,
     };
 
     await db.ref(`users/${user.uid}`).set(userData);
+
+    // Update referral counts
+    if (validReferralBy) {
+      // LEVEL 1 REFERRAL
+      const refUserSnapshot = await db.ref("users")
+        .orderByChild("referralCode")
+        .equalTo(validReferralBy)
+        .once("value");
+
+      if (refUserSnapshot.exists()) {
+        const refUserKey = Object.keys(refUserSnapshot.val())[0];
+        const refUser = refUserSnapshot.val()[refUserKey];
+        const currentLevel1 = refUser.referralRegisterLevel1 || 0;
+
+        await db.ref(`users/${refUserKey}/referralRegisterLevel1`).set(currentLevel1 + 1);
+
+        // LEVEL 2 REFERRAL
+        if (refUser.referralBy) {
+          const refUser2Snapshot = await db.ref("users")
+            .orderByChild("referralCode")
+            .equalTo(refUser.referralBy)
+            .once("value");
+
+          if (refUser2Snapshot.exists()) {
+            const refUser2Key = Object.keys(refUser2Snapshot.val())[0];
+            const refUser2 = refUser2Snapshot.val()[refUser2Key];
+            const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
+
+            await db.ref(`users/${refUser2Key}/referralRegisterLevel2`).set(currentLevel2 + 1);
+          }
+        }
+      }
+    }
 
     return res.status(201).json({
       message: "User registered and wallets created.",
