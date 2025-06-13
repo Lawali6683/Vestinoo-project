@@ -91,7 +91,7 @@
     </div>
   </div>
 
-  <script type="module">
+ <script type="module">
   import { app } from './firebase.js';
   import {
     getAuth,
@@ -107,7 +107,6 @@
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  // Login handler
   const loginBtn = document.getElementById('loginButton');
   loginBtn.addEventListener('click', async () => {
     const email = document.getElementById('adminEmail').value;
@@ -121,7 +120,6 @@
     }
   });
 
-  // Search handler
   document.getElementById('searchBtn').addEventListener('click', async () => {
     const vestinooID = document.getElementById('searchInput').value.trim();
     if (!vestinooID) return;
@@ -147,7 +145,6 @@
     showUserFields(foundUser, userKey);
   });
 
-  // Dynamic form generation
   function showUserFields(data, userKey) {
     const container = document.getElementById('fieldsContainer');
     container.innerHTML = '';
@@ -166,7 +163,6 @@
       container.appendChild(field);
     });
 
-    // Set depositTime automatically if deposit exists
     const deposit = parseFloat(data.deposit);
     const depositTime = data.depositTime;
 
@@ -186,14 +182,25 @@
       editableKeys.forEach(key => {
         const input = document.getElementById(key);
         const originalVal = data[key];
-        let newVal = input.value;
+        let newVal = input.value.trim();
 
-        // Convert numeric values
-        if (!isNaN(newVal) && newVal.trim() !== '' && key !== 'vestinooID') {
+        // Zamu skip update idan ba'a cika ba kuma field ɗin yana daga cikin protected keys
+        const protectedKeys = [
+          'bnbBep20Address',
+          'trxBep20Address',
+          'usdcBep20Address',
+          'usdtBep20Address'
+        ];
+
+        if (protectedKeys.includes(key) && newVal === '') {
+          return; // skip this key, kada a maida shi 0
+        }
+
+        // Convert to number idan possible kuma ba address bane
+        if (!isNaN(newVal) && newVal !== '' && key !== 'vestinooID' && !protectedKeys.includes(key)) {
           newVal = parseFloat(newVal);
         }
 
-        // Check for changes only
         const originalStr = originalVal === undefined || originalVal === null ? '' : String(originalVal);
         const newStr = newVal === undefined || newVal === null ? '' : String(newVal);
 
@@ -218,6 +225,7 @@
     };
   }
 </script>
+
 
 </body>
 </html>
