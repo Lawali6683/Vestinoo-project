@@ -105,8 +105,8 @@ th, td {
     <section class="stats">
       <div class="card">Total Users: <span id="totalUsers">0</span></div>
       <div class="card">Users with Deposit: <span id="totalDepositUsers">0</span></div>
-      <div class="card">Total Invested Amount: $<span id="totalInvested">0</span></div>
-      <div class="card">Total Balance: $<span id="totalBalance">0</span></div>
+      <div class="card">Total Invested Amount: <span id="totalInvested">0</span></div>
+      <div class="card">Total Balance: <span id="totalBalance">0</span></div>
       <div class="card">Total Mined VestBit: <span id="totalVestBit">0</span></div>
     </section>
 
@@ -129,89 +129,102 @@ th, td {
     </section>
   </div>
 
-  <script type="module">
-      import { app } from './firebase.js';
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword
-} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
-import {
-  getDatabase,
-  ref,
-  get
-} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+ <script type="module">
+  import { app } from './firebase.js';
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+  import {
+    getDatabase,
+    ref,
+    get
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
 
-const auth = getAuth(app);
-const db = getDatabase(app);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
 
-const loginBtn = document.getElementById('loginBtn');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const loginError = document.getElementById('login-error');
+  const loginBtn = document.getElementById('loginBtn');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const loginError = document.getElementById('login-error');
 
-loginBtn.onclick = async () => {
-  try {
-    const email = emailInput.value;
-    const password = passwordInput.value;
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (error) {
-    loginError.textContent = "Login failed. Check credentials.";
-  }
-};
+  loginBtn.onclick = async () => {
+    try {
+      const email = emailInput.value;
+      const password = passwordInput.value;
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      loginError.textContent = "Login failed. Check credentials.";
+    }
+  };
 
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
 
-    const snapshot = await get(ref(db, 'users'));
-    const users = snapshot.val() || {};
+      const snapshot = await get(ref(db, 'users'));
+      const users = snapshot.val() || {};
 
-    let totalUsers = 0, totalDepositUsers = 0, totalInvested = 0;
-    let totalBalance = 0, totalVestBit = 0;
+      let totalUsers = 0, totalDepositUsers = 0;
+      let totalInvested = 0, totalBalance = 0, totalVestBit = 0;
 
-    const tableBody = document.getElementById('userRows');
+      const tableBody = document.getElementById('userRows');
+      tableBody.innerHTML = "";
 
-    for (let uid in users) {
-      const u = users[uid];
-      totalUsers++;
+      for (let uid in users) {
+        const u = users[uid];
+        totalUsers++;
 
-      const deposit = parseFloat(u.deposit || 0);
-      const balance = parseFloat(u.userBalance || 0);
-      const vestBit = parseFloat(u.vestBit || 0);
+        const deposit = parseValidNumber(u.deposit);
+        const balance = parseValidNumber(u.userBalance);
+        const vestBit = parseValidNumber(u.vestBit);
 
-      if (deposit > 0) totalDepositUsers++;
-      totalInvested += deposit;
-      totalBalance += balance;
-      totalVestBit += vestBit;
+        if (deposit > 0) totalDepositUsers++;
+        totalInvested += deposit;
+        totalBalance += balance;
+        totalVestBit += vestBit;
 
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${u.email || ''}</td>
-        <td>${u.fullName || ''}</td>
-        <td>$${deposit.toFixed(2)}</td>
-        <td>${u.dailyProfit || 0}</td>
-        <td>${vestBit}</td>
-        <td>${u.level1 || ''}</td>
-        <td>${u.level || ''}</td>
-        <td>${u.vestinooID || ''}</td>
-      `;
-      tableBody.appendChild(row);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${u.email || ''}</td>
+          <td>${u.fullName || ''}</td>
+          <td>$${deposit.toFixed(2)}</td>
+          <td>${u.dailyProfit || '0'}</td>
+          <td>${vestBit.toFixed(2)}</td>
+          <td>${u.level1 || ''}</td>
+          <td>${u.level || ''}</td>
+          <td>${u.vestinooID || ''}</td>
+        `;
+        tableBody.appendChild(row);
 
-      if (uid === user.uid) {
-        document.getElementById('welcome').textContent = `Welcome ${u.fullName || 'Agent'}`;
+        if (uid === user.uid) {
+          document.getElementById('welcome').textContent = `Welcome ${u.fullName || 'Agent'}`;
+        }
       }
+
+      document.getElementById('totalUsers').textContent = totalUsers;
+      document.getElementById('totalDepositUsers').textContent = totalDepositUsers;
+      document.getElementById('totalInvested').textContent = `$${totalInvested.toFixed(2)}`;
+      document.getElementById('totalBalance').textContent = `$${totalBalance.toFixed(2)}`;
+      document.getElementById('totalVestBit').textContent = totalVestBit.toFixed(2);
+    }
+  });
+
+  // ✅ Gyaran parseValidNumber da ke iya karanta adadi daga "$10.00", "15.000000001", "1e-7", da sauransu
+  function parseValidNumber(value) {
+    if (typeof value === 'number') return value;
+
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^0-9.eE-]/g, '').trim(); // cire duk abu baya da adadi ko '.'
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
     }
 
-    document.getElementById('totalUsers').textContent = totalUsers;
-    document.getElementById('totalDepositUsers').textContent = totalDepositUsers;
-    document.getElementById('totalInvested').textContent = totalInvested.toFixed(2);
-    document.getElementById('totalBalance').textContent = totalBalance.toFixed(2);
-    document.getElementById('totalVestBit').textContent = totalVestBit.toFixed(2);
+    return 0;
   }
-});
-
-  </script>
+</script>
 </body>
 </html>
