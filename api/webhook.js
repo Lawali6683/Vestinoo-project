@@ -29,11 +29,15 @@ const plans = [
 ];
 
 function parseAmount(val) {
-  return parseFloat(val.toString().replace("$", ""));
+  return parseFloat(val.toString().replace("$", "").trim());
 }
 
 function toDollars(val) {
   return "$" + val.toFixed(2);
+}
+
+function roundToTwo(val) {
+  return Math.round((parseFloat(val) + Number.EPSILON) * 100) / 100;
 }
 
 module.exports = async (req, res) => {
@@ -41,33 +45,25 @@ module.exports = async (req, res) => {
 
   try {
     const data = req.body;
-    console.log("==> Webhook data received from XaiGate:");
-    console.log(JSON.stringify(data, null, 2));
-
     const {
-      type,
-      userId,
-      amount,
+      transaction_id,
       status,
+      coin,
+      amount,
+      address,
       txid,
-      from,
-      to,
-      symbol,
-      confirmations,
+      timestamp,
+      userId,
     } = data;
 
-    if (type !== "deposit" || status !== "success") {
-      console.log("==> Ignored: not deposit or not success");
-      return res.status(200).send("Ignored - Not deposit or not success");
-    }
+    if (status !== "confirmed") return res.status(200).send("Ignored - Not confirmed");
 
-    const txRef = db.ref("/xaiWebhookLogs/" + txid);
-    const txSnap = await txRef.once("value");
-    if (txSnap.exists()) return res.status(200).send("Already processed");
+    const logsRef = db.ref("/xaiWebhookLogs/" + transaction_id);
+    const logSnap = await logsRef.once("value");
+    if (logSnap.exists()) return res.status(200).send("Already processed");
 
     const usersRef = db.ref("/users");
     const snapshot = await usersRef.once("value");
-
     let matchedUser = null;
     snapshot.forEach((child) => {
       if (child.val().xaigateUserId === userId) {
@@ -76,30 +72,29 @@ module.exports = async (req, res) => {
     });
 
     if (!matchedUser) {
-      console.warn("==> User ID not found:", userId);
-      await txRef.set({ error: true, reason: "User not found", data });
+      await logsRef.set({ error: true, reason: "User not found", data });
       return res.status(400).send("User not found");
     }
 
     const uid = matchedUser.key;
     const user = matchedUser.data;
-    const paymentAmount = parseAmount(amount);
-    const previousDeposit = parseAmount(user.deposit || "$0.00");
-    const newTotal = previousDeposit + paymentAmount;
+    const depositAmount = roundToTwo(parseAmount(user.deposit || "$0.00"));
+    const paymentAmount = roundToTwo(parseAmount(amount));
+    const newTotal = roundToTwo(depositAmount + paymentAmount);
 
-    const plan = [...plans].reverse().find((p) => newTotal >= p.amount);
+    // Duba mafi girman plan da bai wuce newTotal ba
+    const selectedPlan = [...plans].reverse().find((plan) => newTotal >= plan.amount);
 
-    const updates = {
-      ["/users/" + uid + "/deposit"]: toDollars(newTotal),
-      ["/users/" + uid + "/lastDepositTx"]: txid,
-    };
+    const updates = {};
+    updates["/users/" + uid + "/deposit"] = toDollars(newTotal);
+    updates["/users/" + uid + "/lastDepositTx"] = txid;
 
-    if (plan) {
-      updates["/users/" + uid + "/dailyProfit"] = toDollars(plan.dailyProfit);
-      updates["/users/" + uid + "/depositTime"] = new Date().toISOString();
+    if (selectedPlan) {
+      updates["/users/" + uid + "/dailyProfit"] = toDollars(selectedPlan.dailyProfit);
+      updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
     }
 
-    // Mark user as tsohonUser and process referral bonuses
+    // Bonus ga sababbin users
     if (user.tsohonUser === "false") {
       updates["/users/" + uid + "/tsohonUser"] = "yes";
 
@@ -110,7 +105,8 @@ module.exports = async (req, res) => {
             const refVal = refUser.val();
             const currentBonus = parseAmount(refVal.referralBonusLeve1 || "$0.00");
             const currentCount = parseInt(refVal.level1 || "0");
-            const bonus = paymentAmount * 0.08;
+            const bonus = roundToTwo(paymentAmount * 0.08);
+
             updates["/users/" + refUid + "/referralBonusLeve1"] = toDollars(currentBonus + bonus);
             updates["/users/" + refUid + "/level1"] = currentCount + 1;
           }
@@ -124,7 +120,8 @@ module.exports = async (req, res) => {
             const refVal = refUser.val();
             const currentBonus = parseAmount(refVal.referralBonussLeve2 || "$0.00");
             const currentCount = parseInt(refVal.level2 || "0");
-            const bonus = paymentAmount * 0.10;
+            const bonus = roundToTwo(paymentAmount * 0.10);
+
             updates["/users/" + refUid + "/referralBonussLeve2"] = toDollars(currentBonus + bonus);
             updates["/users/" + refUid + "/level2"] = currentCount + 1;
           }
@@ -133,11 +130,10 @@ module.exports = async (req, res) => {
     }
 
     await db.ref().update(updates);
-    await txRef.set({ success: true, data });
+    await logsRef.set({ success: true, data });
 
     res.status(200).send("Deposit processed");
   } catch (err) {
-    console.error("==> Webhook Error:", err);
     const fallbackId = crypto.randomUUID();
     await db.ref("/xaiWebhookErrors/" + fallbackId).set({
       error: err.message,
