@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vestinoo | Payment Approval</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0e0e0e;
+      color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #141414;
+      padding: 1rem 2rem;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-bottom: 2px solid #1e1e1e;
+    }
+
+    .container, .login-container {
+      padding: 2rem;
+    }
+
+    .welcome {
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+    }
+
+    .withdraw-box {
+      background-color: #1b1b1b;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 10px;
+      border: 1px solid #333;
+      position: relative;
+    }
+
+    .withdraw-box .status-badge {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: white;
+      z-index: 2;
+    }
+    .withdraw-box .status-badge.red {
+      background-color: #e53935;
+    }
+    .withdraw-box .status-badge.green {
+      background-color: #43a047;
+    }
+
+    .withdraw-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+  .btn {
+      padding: 8px 10px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s ease;
+      font-size: 13px;
+    }
+
+       .btn.approve { background-color: #2e7d32; color: white; }
+    .btn.cancel { background-color: #c62828; color: white; }
+    .btn.copy { background-color: #1976d2; color: white; }
+    .btn.copy-wallet { background-color: #455a64; color: white; }
+    .btn:hover { opacity: 0.9; }
+
+
+    .no-requests {
+      text-align: center;
+      margin-top: 50px;
+      font-size: 1.0rem;
+      color: #888;
+    }
+
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background-color: #1b1b1b;
+      padding: 2rem;
+      border-radius: 10px;
+      border: 1px solid #333;
+    }
+
+    .login-container h2 {
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 10px;
+      margin: 0.5rem 0;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background-color: #121212;
+      color: white;
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 1rem;
+      background-color: #2e7d32;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+    }
+
+    .alert {
+      background: #263238;
+      color: #fff;
+      padding: 10px 20px;
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 8px;
+      z-index: 999;
+      opacity: 0.95;
+      font-size: 1rem;
+      display: none;
+      min-width: 180px;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .withdraw-info {
+        grid-template-columns: 1fr;
+      }
+      .actions {
+        flex-direction: column;
+        gap: 6px;
+      }
+      .btn {
+        min-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>Vestinoo Payment Approval Panel</header>
+
+  <!-- Login Form -->
+  <div class="login-container" id="loginForm">
+    <h2>Admin Login</h2>
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div class="welcome" id="welcomeText" style="display: none;"></div>
+  <div class="container" id="withdrawContainer" style="display: none;">
+    <div class="no-requests" id="noRequests">No withdrawal requests at the moment.</div>
+  </div>
+
+  <div class="alert" id="alertBox"></div>
+
+<script type="module">
+  import { app } from './firebase.js';
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+  import {
+    getDatabase,
+    ref,
+    get,
+    update,
+    remove
+  } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  const loginForm = document.getElementById("loginForm");
+  const loginBtn = document.getElementById("loginBtn");
+  const emailInput = document.getElementById("email");
+  const passwordInput = document.getElementById("password");
+
+  const withdrawContainer = document.getElementById("withdrawContainer");
+  const noRequests = document.getElementById("noRequests");
+  const welcomeText = document.getElementById("welcomeText");
+  const alertBox = document.getElementById("alertBox");
+
+  let currentAgent = null;
+
+  function showAlert(msg) {
+    alertBox.textContent = msg;
+    alertBox.style.display = "block";
+    setTimeout(() => {
+      alertBox.style.display = "none";
+    }, 1800);
+  }
+
+  loginBtn.onclick = async () => {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      showAlert("Login failed: " + error.message);
+    }
+  };
+
+  let adminTimeOffset = 0;
+
+  // Get device time offset (UTC - device local time in ms)
+  function calcAdminTimeOffset() {
+    return Date.now() - new Date().getTime();
+  }
+
+  // Get admin's current time in ms
+  function getAdminTime() {
+    return new Date().getTime() + adminTimeOffset;
+  }
+
+  // Use admin's device time to calculate hours diff
+  function hoursSince(timestamp) {
+    const now = getAdminTime();
+    return (now - timestamp) / (1000 * 60 * 60);
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      loginForm.style.display = "none";
+      withdrawContainer.style.display = "block";
+      welcomeText.style.display = "block";
+
+      const agentUid = user.uid;
+      const snap = await get(ref(db, `users/${agentUid}`));
+      const agentData = snap.val();
+      currentAgent = agentData?.fullName || "Agent";
+      welcomeText.innerText = `Welcome ${currentAgent}, Agent`;
+
+      // Save device offset for admin (for accurate time diff)
+      adminTimeOffset = calcAdminTimeOffset();
+
+      await loadAllWithdrawalRequests();
+    } else {
+      loginForm.style.display = "block";
+      withdrawContainer.style.display = "none";
+      welcomeText.style.display = "none";
+    }
+  });
+
+  async function loadAllWithdrawalRequests() {
+    withdrawContainer.querySelectorAll(".withdraw-box").forEach(e => e.remove());
+    noRequests.style.display = "block";
+
+    const usersRef = ref(db, "users");
+    const snapshot = await get(usersRef);
+
+    if (!snapshot.exists()) return;
+
+    let count = 1;
+    let found = false;
+
+    snapshot.forEach((userSnap) => {
+      const userId = userSnap.key;
+      const userData = userSnap.val();
+      const withdrawals = userData?.approvedWithdrawals;
+
+      if (withdrawals) {
+        Object.entries(withdrawals).forEach(([withdrawalId, withdrawal]) => {
+          found = true;
+          const withdrawTime = withdrawal.withdrawalTime || 0;
+          const hoursDiff = hoursSince(withdrawTime);
+          // < 24 = red, >= 24 = green
+          const isExpired = hoursDiff >= 24;
+
+          const box = document.createElement("div");
+          box.className = "withdraw-box";
+          box.setAttribute("data-user", userId);
+
+          // Add status badge
+          const badge = document.createElement('span');
+          badge.className = `status-badge ${isExpired ? "green" : "red"}`;
+          badge.textContent = isExpired ? "OK" : "24h+";
+          box.appendChild(badge);
+
+          // Amount/Wallet Copy Buttons
+          const amountValue = parseFloat(withdrawal.amount || 0).toFixed(2);
+          const walletValue = withdrawal.walletAddress || '';
+
+          const infoHTML = `
+            <div class="withdraw-info">
+              <span><strong>#${count++}</strong> ${userData.fullName || ''} (${userId})</span>
+              <span>Email: ${userData.email || ''}</span>
+              <span>Vestino ID: ${userData.vestinooID || ''}</span>
+              <span>XaiGate ID: ${userData.xaigateUserId || ''}</span>
+              <span>
+                Amount: $${amountValue}
+                <button class="btn copy" data-copy="${amountValue}" title="Copy Amount">Copy</button>
+              </span>
+              <span>
+                Wallet: ${walletValue}
+                <button class="btn copy-wallet" data-copy="${walletValue}" title="Copy Wallet">Copy</button>
+              </span>
+              <span>Coin: ${withdrawal.coin || ''}</span>
+              <span>Network ID: ${withdrawal.networkId || ''}</span>
+              <span>Deposit: $${userData.deposit || 0}</span>
+              <span>Daily Profit: $${userData.dailyProfit || 0}</span>
+              <span>User Balance: $${userData.userBalance || 0}</span>
+              <span>Level1: ${userData.level1 || 0}</span>
+              <span>Level2: ${userData.level2 || 0}</span>
+              <span>Requested: ${withdrawal.withdrawalTime ? new Date(withdrawal.withdrawalTime).toLocaleString() : ''}</span>
+            </div>
+            <div class="actions">
+              <button class="btn cancel" title="Remove request">❌ Delete</button>
+              <button class="btn approve" title="Mark as Paid">✔️ Approve</button>
+            </div>
+          `;
+          box.innerHTML += infoHTML;
+          withdrawContainer.appendChild(box);
+          noRequests.style.display = "none";
+
+          // Copy Amount
+          box.querySelector(".btn.copy").onclick = (e) => {
+            const val = e.currentTarget.getAttribute("data-copy");
+            navigator.clipboard.writeText(val).then(() => {
+              showAlert("User amount copied successfully");
+            });
+          };
+          // Copy Wallet
+          box.querySelector(".btn.copy-wallet").onclick = (e) => {
+            const val = e.currentTarget.getAttribute("data-copy");
+            navigator.clipboard.writeText(val).then(() => {
+              showAlert("Wallet address copied successfully");
+            });
+          };
+
+          // OK: Remove withdrawal only, no deduction, user must re-request
+          box.querySelector(".btn.cancel").onclick = () =>
+            handleOK(userId, withdrawalId, box);
+
+          // Approve: Mark as paid, move withdrawal to successfullyPayment, balance deduction
+          box.querySelector(".btn.approve").onclick = () =>
+            handleApprove(userId, userData, withdrawal, withdrawalId, box);
+        });
+      }
+    });
+
+    if (!found) noRequests.style.display = "block";
+  }
+
+  // Approve: pay and move to successfullyPayment
+  async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
+    try {
+      if (!confirm(`${currentAgent}, are you sure you want to approve this payment?`)) return;
+
+      const fee = parseFloat(withdrawal.amount) * 0.06;
+      const totalDeduct = parseFloat((parseFloat(withdrawal.amount) + fee).toFixed(2));
+
+      const updates = {};
+      // Deduct from balance
+      const balance = parseFloat(userData.userBalance || 0);
+      updates[`users/${userId}/userBalance`] = parseFloat((balance - totalDeduct).toFixed(2));
+      // Move to successfullyPayment
+      const successId = `successfullyPayment/${Date.now()}`;
+      updates[`users/${userId}/${successId}`] = {
+        ...withdrawal,
+        withdrawalTime: Date.now()
+      };
+      // Remove withdrawal request
+      updates[`users/${userId}/approvedWithdrawals/${withdrawalId}`] = null;
+      // Update total withdrawal
+      const oldTotal = parseFloat(userData.totallyWithdraw || 0);
+      updates[`users/${userId}/totallyWithdraw`] = parseFloat((oldTotal + parseFloat(withdrawal.amount)).toFixed(2));
+      // Counting
+      const oldCount = parseInt(userData.countingWithdraw || 0);
+      updates[`users/${userId}/countingWithdraw`] = oldCount + 1;
+
+      await update(ref(db), updates);
+      showAlert("Payment successfully processed!");
+      box.remove();
+      checkEmpty();
+    } catch (err) {
+      showAlert("Unexpected error: " + err.message);
+    }
+  }
+
+  // OK: Remove withdrawal only, user must request again
+  async function handleOK(userId, withdrawalId, box) {
+    try {
+      if (!confirm(`${currentAgent}, are you sure you want to remove this withdrawal?`)) return;
+      await remove(ref(db, `users/${userId}/approvedWithdrawals/${withdrawalId}`));
+      showAlert("Withdrawal request removed. User must request again.");
+      box.remove();
+      checkEmpty();
+    } catch (err) {
+      showAlert("Unexpected error: " + err.message);
+    }
+  }
+
+  function checkEmpty() {
+    if (withdrawContainer.querySelectorAll(".withdraw-box").length === 0) {
+      noRequests.style.display = "block";
+    }
+  }
+</script>
+</body>
+</html>
