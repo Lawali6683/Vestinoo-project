@@ -29,11 +29,8 @@ const plans = [
 ];
 
 function parseAmount(val) {
+  if (typeof val === "number") return val;
   return parseFloat(val.toString().replace("$", "").trim());
-}
-
-function toDollars(val) {
-  return "$" + val.toFixed(2);
 }
 
 function roundToTwo(val) {
@@ -65,6 +62,7 @@ module.exports = async (req, res) => {
     const usersRef = db.ref("/users");
     const snapshot = await usersRef.once("value");
     let matchedUser = null;
+
     snapshot.forEach((child) => {
       if (child.val().xaigateUserId === userId) {
         matchedUser = { key: child.key, data: child.val() };
@@ -78,23 +76,23 @@ module.exports = async (req, res) => {
 
     const uid = matchedUser.key;
     const user = matchedUser.data;
-    const depositAmount = roundToTwo(parseAmount(user.deposit || "$0.00"));
+
+    const depositAmount = roundToTwo(parseAmount(user.deposit || 0));
     const paymentAmount = roundToTwo(parseAmount(amount));
     const newTotal = roundToTwo(depositAmount + paymentAmount);
 
-    // Duba mafi girman plan da bai wuce newTotal ba
     const selectedPlan = [...plans].reverse().find((plan) => newTotal >= plan.amount);
 
     const updates = {};
-    updates["/users/" + uid + "/deposit"] = toDollars(newTotal);
+    updates["/users/" + uid + "/deposit"] = newTotal;
     updates["/users/" + uid + "/lastDepositTx"] = txid;
 
     if (selectedPlan) {
-      updates["/users/" + uid + "/dailyProfit"] = toDollars(selectedPlan.dailyProfit);
+      updates["/users/" + uid + "/dailyProfit"] = selectedPlan.dailyProfit;
       updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
     }
 
-    // Bonus ga sababbin users
+    // Referral bonus
     if (user.tsohonUser === "false") {
       updates["/users/" + uid + "/tsohonUser"] = "yes";
 
@@ -103,11 +101,11 @@ module.exports = async (req, res) => {
           if (refUser.val().referralCode === user.referralBy) {
             const refUid = refUser.key;
             const refVal = refUser.val();
-            const currentBonus = parseAmount(refVal.referralBonusLeve1 || "$0.00");
-            const currentCount = parseInt(refVal.level1 || "0");
+            const currentBonus = roundToTwo(parseAmount(refVal.referralBonusLeve1 || 0));
             const bonus = roundToTwo(paymentAmount * 0.08);
+            const currentCount = parseInt(refVal.level1 || "0");
 
-            updates["/users/" + refUid + "/referralBonusLeve1"] = toDollars(currentBonus + bonus);
+            updates["/users/" + refUid + "/referralBonusLeve1"] = roundToTwo(currentBonus + bonus);
             updates["/users/" + refUid + "/level1"] = currentCount + 1;
           }
         });
@@ -118,11 +116,11 @@ module.exports = async (req, res) => {
           if (refUser.val().referralCode === user.level2ReferralBy) {
             const refUid = refUser.key;
             const refVal = refUser.val();
-            const currentBonus = parseAmount(refVal.referralBonussLeve2 || "$0.00");
-            const currentCount = parseInt(refVal.level2 || "0");
+            const currentBonus = roundToTwo(parseAmount(refVal.referralBonussLeve2 || 0));
             const bonus = roundToTwo(paymentAmount * 0.10);
+            const currentCount = parseInt(refVal.level2 || "0");
 
-            updates["/users/" + refUid + "/referralBonussLeve2"] = toDollars(currentBonus + bonus);
+            updates["/users/" + refUid + "/referralBonussLeve2"] = roundToTwo(currentBonus + bonus);
             updates["/users/" + refUid + "/level2"] = currentCount + 1;
           }
         });
