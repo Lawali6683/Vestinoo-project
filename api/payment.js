@@ -67,19 +67,18 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: "Unauthorized request" });
   }
 
-  const { amount, walletAddress, coin, networkId, xaigateUserId } = req.body || {};
+  const { amount, walletAddress, coin, networkId } = req.body || {};
 
-  if (!amount || !walletAddress || !coin || !networkId || !xaigateUserId) {
+  if (!amount || !walletAddress || !coin || !networkId) {
     return res.status(400).json({
       error: "Missing required withdrawal parameters",
-      received: { amount, walletAddress, coin, networkId, xaigateUserId },
+      received: { amount, walletAddress, coin, networkId },
     });
   }
 
   try {
     const payload = {
       apiKey: XAIGATE_API_KEY,
-      userId: xaigateUserId,
       coin,
       receivedAddress: walletAddress,
       amount: String(amount),
