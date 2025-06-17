@@ -67,27 +67,21 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: "Unauthorized request" });
   }
 
-  const { amount, walletAddress, coin, networkId } = req.body || {};
+  const { amount, walletAddress, coin, networkId, xaigateUserId } = req.body || {};
 
-  if (!amount || !walletAddress || !coin || !networkId) {
-    return res.status(400).json({
-      error: "Missing required withdrawal parameters",
-      received: { amount, walletAddress, coin, networkId },
-    });
+  if (!amount || !walletAddress || !coin || !networkId || !xaigateUserId) {
+    return res.status(400).json({ error: "Missing required withdrawal parameters" });
   }
 
   try {
-    const payload = {
+    const response = await postData("/api/v1/withdraw", {
       apiKey: XAIGATE_API_KEY,
+      userId: xaigateUserId,
       coin,
       receivedAddress: walletAddress,
       amount: String(amount),
       networkId: String(networkId),
-    };
-
-    console.log("🔄 Withdrawal Payload Sent to XaiGate:", payload);
-
-    const response = await postData("/api/v1/withdraw", payload);
+    });
 
     return res.status(200).json({
       success: true,
@@ -95,18 +89,12 @@ module.exports = async (req, res) => {
       response,
     });
   } catch (err) {
-    console.error("❌ Withdrawal Error:", {
-      input: req.body,
-      error: err.error,
-      details: err.details || err.raw,
-    });
-
+    console.error("Withdrawal Error:", err);
     return res.status(500).json({
       success: false,
       message: "Withdrawal failed",
       error: err.error || "Unknown error",
       details: err.details || err.raw || null,
-      input: req.body,
     });
   }
 };
