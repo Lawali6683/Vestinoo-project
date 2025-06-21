@@ -1,13 +1,14 @@
+// register.js (userData.js)
+
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const https = require("https");
+const axios = require("axios");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
   ? JSON.parse(process.env.FIREBASE_DATABASE_SDK)
   : null;
-const XAIGATE_API_KEY = process.env.XAIGATE_API_KEY;
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -17,54 +18,6 @@ if (!admin.apps.length) {
 }
 
 const db = admin.database();
-
-function postData(path, data) {
-  return new Promise((resolve, reject) => {
-    const dataString = JSON.stringify(data);
-    const options = {
-      hostname: "wallet-api.xaigate.com",
-      port: 443,
-      path,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(dataString),
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let responseData = "";
-      res.on("data", (chunk) => (responseData += chunk));
-      res.on("end", () => {
-        try {
-          const parsedData = JSON.parse(responseData);
-          console.log(`[XaiGate ${path}] Status:`, res.statusCode);
-          console.log(`[XaiGate ${path}] Body:`, parsedData);
-
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(parsedData);
-          } else {
-            reject({
-              error: `XaiGate Error: ${res.statusCode}`,
-              response: parsedData,
-            });
-          }
-        } catch (e) {
-          console.error("JSON Parse Error:", e);
-          reject({ error: "Invalid JSON", raw: responseData });
-        }
-      });
-    });
-
-    req.on("error", (e) => {
-      console.error("HTTPS Request Error:", e);
-      reject({ error: "Request error", details: e });
-    });
-
-    req.write(dataString);
-    req.end();
-  });
-}
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -89,84 +42,45 @@ module.exports = async (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase();
   try {
-    const user = await admin.auth().getUserByEmail(normalizedEmail);
+    const userRecord = await admin.auth().getUserByEmail(normalizedEmail);
+    const uid = userRecord.uid;
+
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
-    let level2ReferralBy = null;
-    let validReferralBy = null;
+    // Generate unique CoinPay ID
+    const userCoinpayid = `CP-${crypto.randomBytes(3).toString("hex")}`;
 
-    if (referralBy) {
-      const refUserSnapshot = await db.ref("users")
-        .orderByChild("referralCode")
-        .equalTo(referralBy)
-        .once("value");
+    const coinpayCheck = await db.ref("users").orderByChild("userCoinpayid").equalTo(userCoinpayid).once("value");
+    if (coinpayCheck.exists()) {
+      return res.status(409).json({ error: "CoinPay ID already exists" });
+    }
 
-      if (refUserSnapshot.exists()) {
-        const refUser = Object.values(refUserSnapshot.val())[0];
-        validReferralBy = referralBy;
-        level2ReferralBy = refUser.referralBy || null;
-      } else {
-        return res.status(400).json({ error: "Invalid referral code" });
-      }
+    // Create Wallet via external endpoint
+    let walletResponse;
+    try {
+      const walletReq = await axios.post("https://bonus-gamma.vercel.app/api/createWallet", {
+        userCoinpayid,
+      });
+      walletResponse = walletReq.data;
+    } catch (err) {
+      return res.status(500).json({ error: "Failed to create wallet", details: err.response?.data || err.message });
     }
 
     const createdAt = new Date().toISOString();
-
-    // STEP 1: Create user in XaiGate
-    let createUserResponse;
-    try {
-      createUserResponse = await postData("/api/v1/createUser", {
-        name: fullName,
-        apiKey: XAIGATE_API_KEY,
-      });
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to create XaiGate user", details: error });
-    }
-
-    const xaigateUserId = createUserResponse.userId;
-    if (!xaigateUserId) {
-      return res.status(422).json({ error: "XaiGate user ID not returned" });
-    }
-
-    // STEP 2: Generate wallet addresses
-    const wallets = {};
-
-    const coins = [
-      { coin: "BNB", field: "bnbBep20Address", networkId: "56" },
-      { coin: "USDT", field: "usdtBep20Address", networkId: "56" },
-      { coin: "USDC", field: "usdcBep20Address", networkId: "56" },
-      { coin: "TRX", field: "trxBep20Address", networkId: "56" }, // or use "1" if XaiGate docs prefer
-    ];
-
-    for (const { coin, field, networkId } of coins) {
-      try {
-        const response = await postData("/api/v1/generateAddress", {
-          apiKey: XAIGATE_API_KEY,
-          userId: xaigateUserId,
-          coin,
-          networkId,
-        });
-
-        if (!response.address) throw new Error("No address returned");
-        wallets[field] = response.address;
-        console.log(`✅ ${coin} → ${field}: ${response.address}`);
-      } catch (err) {
-        return res.status(500).json({ error: `Failed to generate ${coin} address`, details: err });
-      }
-    }
-
     const userData = {
       fullName,
       email: normalizedEmail,
       username,
       country,
-      referralLink,
+      password,
       referralCode,
-      referralBy: validReferralBy,
-      level2ReferralBy,
+      referralLink,
       vestinooID,
+      createdAt,
+      userCoinpayid,
+      ...walletResponse,
       userBalance: 0,
       deposit: 0,
       dailyProfit: 0,
@@ -181,55 +95,12 @@ module.exports = async (req, res) => {
       level2: "0",
       referralRegisterLevel1: 0,
       referralRegisterLevel2: 0,
-      xaigateUserId,
-      createdAt,
-      ...wallets,
     };
 
-    await db.ref(`users/${user.uid}`).set(userData);
+    await db.ref(`users/${uid}`).set(userData);
 
-    // Update referral counts
-    if (validReferralBy) {
-      // LEVEL 1 REFERRAL
-      const refUserSnapshot = await db.ref("users")
-        .orderByChild("referralCode")
-        .equalTo(validReferralBy)
-        .once("value");
-
-      if (refUserSnapshot.exists()) {
-        const refUserKey = Object.keys(refUserSnapshot.val())[0];
-        const refUser = refUserSnapshot.val()[refUserKey];
-        const currentLevel1 = refUser.referralRegisterLevel1 || 0;
-
-        await db.ref(`users/${refUserKey}/referralRegisterLevel1`).set(currentLevel1 + 1);
-
-        // LEVEL 2 REFERRAL
-        if (refUser.referralBy) {
-          const refUser2Snapshot = await db.ref("users")
-            .orderByChild("referralCode")
-            .equalTo(refUser.referralBy)
-            .once("value");
-
-          if (refUser2Snapshot.exists()) {
-            const refUser2Key = Object.keys(refUser2Snapshot.val())[0];
-            const refUser2 = refUser2Snapshot.val()[refUser2Key];
-            const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
-
-            await db.ref(`users/${refUser2Key}/referralRegisterLevel2`).set(currentLevel2 + 1);
-          }
-        }
-      }
-    }
-
-    return res.status(201).json({
-      message: "User registered and wallets created.",
-      userId: user.uid,
-      vestinooID,
-    });
+    return res.status(201).json({ message: "User registered successfully", userId: uid, userCoinpayid });
   } catch (error) {
-    return res.status(500).json({
-      error: "An unexpected error occurred.",
-      details: error.message || error,
-    });
+    return res.status(500).json({ error: "Registration failed", details: error.message || error });
   }
 };
