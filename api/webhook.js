@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const https = require("https");
 
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
@@ -42,16 +43,7 @@ module.exports = async (req, res) => {
 
   try {
     const data = req.body;
-    const {
-      transaction_id,
-      status,
-      coin,
-      amount,
-      address,
-      txid,
-      timestamp,
-      userId,
-    } = data;
+    const { transaction_id, status, coin, amount, address, txid, timestamp, uid } = data;
 
     if (status !== "confirmed") return res.status(200).send("Ignored - Not confirmed");
 
@@ -59,23 +51,10 @@ module.exports = async (req, res) => {
     const logSnap = await logsRef.once("value");
     if (logSnap.exists()) return res.status(200).send("Already processed");
 
-    const usersRef = db.ref("/users");
-    const snapshot = await usersRef.once("value");
-    let matchedUser = null;
+    const userSnap = await db.ref("/users/" + uid).once("value");
+    if (!userSnap.exists()) return res.status(404).send("User not found");
 
-    snapshot.forEach((child) => {
-      if (child.val().xaigateUserId === userId) {
-        matchedUser = { key: child.key, data: child.val() };
-      }
-    });
-
-    if (!matchedUser) {
-      await logsRef.set({ error: true, reason: "User not found", data });
-      return res.status(400).send("User not found");
-    }
-
-    const uid = matchedUser.key;
-    const user = matchedUser.data;
+    const user = userSnap.val();
 
     const depositAmount = roundToTwo(parseAmount(user.deposit || 0));
     const paymentAmount = roundToTwo(parseAmount(amount));
@@ -92,43 +71,64 @@ module.exports = async (req, res) => {
       updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
     }
 
-    // Referral bonus
+    // Referral bonus (1st level)
     if (user.tsohonUser === "false") {
       updates["/users/" + uid + "/tsohonUser"] = "yes";
 
       if (user.referralBy) {
-        snapshot.forEach((refUser) => {
-          if (refUser.val().referralCode === user.referralBy) {
-            const refUid = refUser.key;
-            const refVal = refUser.val();
-            const currentBonus = roundToTwo(parseAmount(refVal.referralBonusLeve1 || 0));
-            const bonus = roundToTwo(paymentAmount * 0.08);
-            const currentCount = parseInt(refVal.level1 || "0");
+        const refUserSnap = await db
+          .ref("/users")
+          .orderByChild("referralCode")
+          .equalTo(user.referralBy)
+          .once("value");
 
-            updates["/users/" + refUid + "/referralBonusLeve1"] = roundToTwo(currentBonus + bonus);
-            updates["/users/" + refUid + "/level1"] = currentCount + 1;
-          }
-        });
+        if (refUserSnap.exists()) {
+          const refUid = Object.keys(refUserSnap.val())[0];
+          const refData = Object.values(refUserSnap.val())[0];
+
+          const currentBonus = roundToTwo(parseAmount(refData.referralBonusLeve1 || 0));
+          const bonus = roundToTwo(paymentAmount * 0.08);
+          const currentCount = parseInt(refData.level1 || "0");
+
+          updates["/users/" + refUid + "/referralBonusLeve1"] = roundToTwo(currentBonus + bonus);
+          updates["/users/" + refUid + "/level1"] = currentCount + 1;
+        }
       }
 
+      // Referral bonus (2nd level) with 6% now
       if (user.level2ReferralBy) {
-        snapshot.forEach((refUser) => {
-          if (refUser.val().referralCode === user.level2ReferralBy) {
-            const refUid = refUser.key;
-            const refVal = refUser.val();
-            const currentBonus = roundToTwo(parseAmount(refVal.referralBonussLeve2 || 0));
-            const bonus = roundToTwo(paymentAmount * 0.10);
-            const currentCount = parseInt(refVal.level2 || "0");
+        const refUser2Snap = await db
+          .ref("/users")
+          .orderByChild("referralCode")
+          .equalTo(user.level2ReferralBy)
+          .once("value");
 
-            updates["/users/" + refUid + "/referralBonussLeve2"] = roundToTwo(currentBonus + bonus);
-            updates["/users/" + refUid + "/level2"] = currentCount + 1;
-          }
-        });
+        if (refUser2Snap.exists()) {
+          const refUid2 = Object.keys(refUser2Snap.val())[0];
+          const refData2 = Object.values(refUser2Snap.val())[0];
+
+          const currentBonus2 = roundToTwo(parseAmount(refData2.referralBonussLeve2 || 0));
+          const bonus2 = roundToTwo(paymentAmount * 0.06);
+          const currentCount2 = parseInt(refData2.level2 || "0");
+
+          updates["/users/" + refUid2 + "/referralBonussLeve2"] = roundToTwo(currentBonus2 + bonus2);
+          updates["/users/" + refUid2 + "/level2"] = currentCount2 + 1;
+        }
       }
     }
 
     await db.ref().update(updates);
     await logsRef.set({ success: true, data });
+
+    // GAS MANAGER: Notify to set fee and sweep
+    await fetch("https://bonus-gamma.vercel.app/gasManager.js", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.API_AUTH_KEY,
+      },
+      body: JSON.stringify({ uid, coin, amount, txid }),
+    });
 
     res.status(200).send("Deposit processed");
   } catch (err) {
