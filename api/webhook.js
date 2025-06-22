@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
+const fetch = require("node-fetch");
 const crypto = require("crypto");
-const https = require("https");
 
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
 const SERVICE_ACCOUNT = process.env.FIREBASE_DATABASE_SDK
@@ -16,6 +16,7 @@ if (!admin.apps.length && SERVICE_ACCOUNT) {
 
 const db = admin.database();
 
+// Investment plans
 const plans = [
   { amount: 800, dailyProfit: 30.8, days: 49 },
   { amount: 400, dailyProfit: 16.8, days: 45 },
@@ -29,111 +30,130 @@ const plans = [
   { amount: 2, dailyProfit: 0.16, days: 22 },
 ];
 
+// Utility functions
 function parseAmount(val) {
   if (typeof val === "number") return val;
   return parseFloat(val.toString().replace("$", "").trim());
 }
-
 function roundToTwo(val) {
   return Math.round((parseFloat(val) + Number.EPSILON) * 100) / 100;
 }
 
+// Main webhook handler
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
   try {
+    // API key security
+    if (req.headers["x-api-key"] !== "@haruna66") return res.status(403).send("Forbidden");
+
     const data = req.body;
-    const { transaction_id, status, coin, amount, address, txid, timestamp, uid } = data;
+    const {
+      uid,
+      userCoinpayid,
+      coin,
+      amount,
+      txHash,
+      status,
+    } = data;
 
-    if (status !== "confirmed") return res.status(200).send("Ignored - Not confirmed");
+    if (!uid || !coin || !amount || !txHash) {
+      return res.status(400).send("Missing required fields");
+    }
 
-    const logsRef = db.ref("/xaiWebhookLogs/" + transaction_id);
+    // Only process "pending" or "confirmed" deposits
+    if (status && status !== "pending" && status !== "confirmed") {
+      return res.status(200).send("Ignored - Not a deposit event");
+    }
+
+    // Ensure idempotency: check if already processed
+    const logsRef = db.ref("/depositWebhookLogs/" + txHash);
     const logSnap = await logsRef.once("value");
     if (logSnap.exists()) return res.status(200).send("Already processed");
 
+    // Find user by uid
     const userSnap = await db.ref("/users/" + uid).once("value");
-    if (!userSnap.exists()) return res.status(404).send("User not found");
-
+    if (!userSnap.exists()) {
+      await logsRef.set({ error: true, reason: "User not found", data });
+      return res.status(400).send("User not found");
+    }
     const user = userSnap.val();
 
     const depositAmount = roundToTwo(parseAmount(user.deposit || 0));
     const paymentAmount = roundToTwo(parseAmount(amount));
     const newTotal = roundToTwo(depositAmount + paymentAmount);
 
+    // Get plan
     const selectedPlan = [...plans].reverse().find((plan) => newTotal >= plan.amount);
 
     const updates = {};
     updates["/users/" + uid + "/deposit"] = newTotal;
-    updates["/users/" + uid + "/lastDepositTx"] = txid;
+    updates["/users/" + uid + "/lastDepositTx"] = txHash;
+    updates["/users/" + uid + "/lastDepositCoin"] = coin;
+    updates["/users/" + uid + "/lastDepositAmount"] = paymentAmount;
+    updates["/users/" + uid + "/lastDepositTime"] = new Date().toISOString();
 
     if (selectedPlan) {
       updates["/users/" + uid + "/dailyProfit"] = selectedPlan.dailyProfit;
-      updates["/users/" + uid + "/depositTime"] = new Date(timestamp).toISOString();
+      updates["/users/" + uid + "/depositTime"] = new Date().toISOString();
     }
 
-    // Referral bonus (1st level)
-    if (user.tsohonUser === "false") {
+    // Referral bonuses (only on first deposit)
+    if (user.tsohonUser !== "yes") {
       updates["/users/" + uid + "/tsohonUser"] = "yes";
 
-      if (user.referralBy) {
-        const refUserSnap = await db
-          .ref("/users")
-          .orderByChild("referralCode")
-          .equalTo(user.referralBy)
-          .once("value");
-
-        if (refUserSnap.exists()) {
-          const refUid = Object.keys(refUserSnap.val())[0];
-          const refData = Object.values(refUserSnap.val())[0];
-
-          const currentBonus = roundToTwo(parseAmount(refData.referralBonusLeve1 || 0));
+      // Level 1 referral
+      if (user.referralBy) {        
+        const snapshot = await db.ref("/users").orderByChild("referralCode").equalTo(user.referralBy).once("value");
+        snapshot.forEach((refUserSnap) => {
+          const refUid = refUserSnap.key;
+          const refVal = refUserSnap.val();
+          const currentBonus = roundToTwo(parseAmount(refVal.referralBonusLeve1 || 0));
           const bonus = roundToTwo(paymentAmount * 0.08);
-          const currentCount = parseInt(refData.level1 || "0");
-
+          const currentCount = parseInt(refVal.level1 || "0");
           updates["/users/" + refUid + "/referralBonusLeve1"] = roundToTwo(currentBonus + bonus);
           updates["/users/" + refUid + "/level1"] = currentCount + 1;
-        }
+        });
       }
 
-      // Referral bonus (2nd level) with 6% now
+      // Level 2 referral
       if (user.level2ReferralBy) {
-        const refUser2Snap = await db
-          .ref("/users")
-          .orderByChild("referralCode")
-          .equalTo(user.level2ReferralBy)
-          .once("value");
-
-        if (refUser2Snap.exists()) {
-          const refUid2 = Object.keys(refUser2Snap.val())[0];
-          const refData2 = Object.values(refUser2Snap.val())[0];
-
-          const currentBonus2 = roundToTwo(parseAmount(refData2.referralBonussLeve2 || 0));
-          const bonus2 = roundToTwo(paymentAmount * 0.06);
-          const currentCount2 = parseInt(refData2.level2 || "0");
-
-          updates["/users/" + refUid2 + "/referralBonussLeve2"] = roundToTwo(currentBonus2 + bonus2);
-          updates["/users/" + refUid2 + "/level2"] = currentCount2 + 1;
-        }
+        const snapshot = await db.ref("/users").orderByChild("referralCode").equalTo(user.level2ReferralBy).once("value");
+        snapshot.forEach((refUserSnap) => {
+          const refUid = refUserSnap.key;
+          const refVal = refUserSnap.val();
+          const currentBonus = roundToTwo(parseAmount(refVal.referralBonussLeve2 || 0));
+          const bonus = roundToTwo(paymentAmount * 0.06); // 6% for level 2
+          const currentCount = parseInt(refVal.level2 || "0");
+          updates["/users/" + refUid + "/referralBonussLeve2"] = roundToTwo(currentBonus + bonus);
+          updates["/users/" + refUid + "/level2"] = currentCount + 1;
+        });
       }
     }
 
+    // Apply all updates
     await db.ref().update(updates);
     await logsRef.set({ success: true, data });
-
-    // GAS MANAGER: Notify to set fee and sweep
-    await fetch("https://bonus-gamma.vercel.app/gasManager.js", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.API_AUTH_KEY,
-      },
-      body: JSON.stringify({ uid, coin, amount, txid }),
-    });
+   
+    try {
+      await fetch("https://bonus-gamma.vercel.app/gasManager.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": "@haruna66" },
+        body: JSON.stringify({ uid, userCoinpayid, coin, amount: paymentAmount, txHash }),
+      });
+    } catch (e) {      
+      await db.ref("/gasManagerNotifyFails/" + txHash).set({
+        error: e.message,
+        timestamp: new Date().toISOString(),
+        txHash,
+        uid,
+      });
+    }
 
     res.status(200).send("Deposit processed");
   } catch (err) {
     const fallbackId = crypto.randomUUID();
-    await db.ref("/xaiWebhookErrors/" + fallbackId).set({
+    await db.ref("/depositWebhookErrors/" + fallbackId).set({
       error: err.message,
       full: err.toString(),
       timestamp: new Date().toISOString(),
