@@ -82,22 +82,14 @@ module.exports = async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+
   try {
-    // Unique coinpayid generator (use email hash)
-    const coinpayid = "CPID-" + crypto.createHash("sha256").update(normalizedEmail).digest("hex").slice(0, 12);
-
-    // Check if coinpayid already exists!
-    const usersSnap = await db.ref("users").orderByChild("coinpayid").equalTo(coinpayid).once("value");
-    if (usersSnap.exists()) {
-      return res.status(409).json({ error: "User with this coinpayid already exists" });
-    }
-
-    // Make sure email is not used
+    // Create Firebase Auth user
     let userRecord;
     try {
       userRecord = await admin.auth().getUserByEmail(normalizedEmail);
+      return res.status(409).json({ error: "Email already in use" });
     } catch (e) {
-      // User not found, create new
       userRecord = await admin.auth().createUser({
         email: normalizedEmail,
         password,
@@ -105,6 +97,10 @@ module.exports = async (req, res) => {
       });
     }
 
+    const uid = userRecord.uid;
+
+    // Generate coinpayid unique to uid
+    const coinpayid = "CPID-" + uid.slice(0, 12);
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
@@ -128,7 +124,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // STEP 1: Generate wallet by calling createWallet API
     let walletData;
     try {
       walletData = await callCreateWalletApi({ userCoinpayid: coinpayid });
@@ -136,7 +131,6 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: "Failed to generate wallet", details: error });
     }
 
-    // STEP 2: Save user
     const createdAt = new Date().toISOString();
     const userData = {
       fullName,
@@ -167,11 +161,10 @@ module.exports = async (req, res) => {
       ...walletData,
     };
 
-    await db.ref(`users/${userRecord.uid}`).set(userData);
+    await db.ref(`users/${uid}`).set(userData);
 
     // Update referral counts
     if (validReferralBy) {
-      // LEVEL 1
       const refUserSnapshot = await db.ref("users")
         .orderByChild("referralCode")
         .equalTo(validReferralBy)
@@ -184,7 +177,6 @@ module.exports = async (req, res) => {
 
         await db.ref(`users/${refUserKey}/referralRegisterLevel1`).set(currentLevel1 + 1);
 
-        // LEVEL 2
         if (refUser.referralBy) {
           const refUser2Snapshot = await db.ref("users")
             .orderByChild("referralCode")
@@ -204,11 +196,12 @@ module.exports = async (req, res) => {
 
     return res.status(201).json({
       message: "User registered and wallets created.",
-      userId: userRecord.uid,
+      userId: uid,
       vestinooID,
       coinpayid,
       walletData,
     });
+
   } catch (error) {
     console.error("[userData.js] Error:", error);
     return res.status(500).json({
