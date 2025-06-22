@@ -1,8 +1,6 @@
-// register.js (userData.js)
-
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const axios = require("axios");
+const https = require("https");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
@@ -19,14 +17,57 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
+function callCreateWalletApi(data) {
+  return new Promise((resolve, reject) => {
+    const dataString = JSON.stringify(data);
+    const options = {
+      hostname: "bonus-gamma.vercel.app",
+      port: 443,
+      path: "/api/createWallet",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(dataString),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let responseData = "";
+      res.on("data", (chunk) => (responseData += chunk));
+      res.on("end", () => {
+        try {
+          const parsedData = JSON.parse(responseData);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(parsedData);
+          } else {
+            reject({
+              error: `createWallet Error: ${res.statusCode}`,
+              response: parsedData,
+            });
+          }
+        } catch (e) {
+          reject({ error: "Invalid JSON", raw: responseData });
+        }
+      });
+    });
+
+    req.on("error", (e) => {
+      reject({ error: "Request error", details: e });
+    });
+
+    req.write(dataString);
+    req.end();
+  });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
   if (req.method === "OPTIONS") return res.status(204).end();
 
   const origin = req.headers.origin;
-  if (origin !== "https://vestinoo.pages.dev") {
+  if (origin && origin !== "https://vestinoo.pages.dev") {
     return res.status(403).json({ error: "Forbidden origin" });
   }
 
@@ -42,45 +83,72 @@ module.exports = async (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase();
   try {
-    const userRecord = await admin.auth().getUserByEmail(normalizedEmail);
-    const uid = userRecord.uid;
+    // Unique coinpayid generator (use email hash)
+    const coinpayid = "CPID-" + crypto.createHash("sha256").update(normalizedEmail).digest("hex").slice(0, 12);
+
+    // Check if coinpayid already exists!
+    const usersSnap = await db.ref("users").orderByChild("coinpayid").equalTo(coinpayid).once("value");
+    if (usersSnap.exists()) {
+      return res.status(409).json({ error: "User with this coinpayid already exists" });
+    }
+
+    // Make sure email is not used
+    let userRecord;
+    try {
+      userRecord = await admin.auth().getUserByEmail(normalizedEmail);
+    } catch (e) {
+      // User not found, create new
+      userRecord = await admin.auth().createUser({
+        email: normalizedEmail,
+        password,
+        displayName: fullName,
+      });
+    }
 
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
-    // Generate unique CoinPay ID
-    const userCoinpayid = `CP-${crypto.randomBytes(3).toString("hex")}`;
+    // Check referral
+    let level2ReferralBy = null;
+    let validReferralBy = null;
 
-    const coinpayCheck = await db.ref("users").orderByChild("userCoinpayid").equalTo(userCoinpayid).once("value");
-    if (coinpayCheck.exists()) {
-      return res.status(409).json({ error: "CoinPay ID already exists" });
+    if (referralBy) {
+      const refUserSnapshot = await db.ref("users")
+        .orderByChild("referralCode")
+        .equalTo(referralBy)
+        .once("value");
+
+      if (refUserSnapshot.exists()) {
+        const refUser = Object.values(refUserSnapshot.val())[0];
+        validReferralBy = referralBy;
+        level2ReferralBy = refUser.referralBy || null;
+      } else {
+        return res.status(400).json({ error: "Invalid referral code" });
+      }
     }
 
-    // Create Wallet via external endpoint
-    let walletResponse;
+    // STEP 1: Generate wallet by calling createWallet API
+    let walletData;
     try {
-      const walletReq = await axios.post("https://bonus-gamma.vercel.app/api/createWallet", {
-        userCoinpayid,
-      });
-      walletResponse = walletReq.data;
-    } catch (err) {
-      return res.status(500).json({ error: "Failed to create wallet", details: err.response?.data || err.message });
+      walletData = await callCreateWalletApi({ userCoinpayid: coinpayid });
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to generate wallet", details: error });
     }
 
+    // STEP 2: Save user
     const createdAt = new Date().toISOString();
     const userData = {
       fullName,
       email: normalizedEmail,
       username,
       country,
-      password,
-      referralCode,
       referralLink,
+      referralCode,
+      referralBy: validReferralBy,
+      level2ReferralBy,
       vestinooID,
-      createdAt,
-      userCoinpayid,
-      ...walletResponse,
+      coinpayid,
       userBalance: 0,
       deposit: 0,
       dailyProfit: 0,
@@ -95,12 +163,57 @@ module.exports = async (req, res) => {
       level2: "0",
       referralRegisterLevel1: 0,
       referralRegisterLevel2: 0,
+      createdAt,
+      ...walletData,
     };
 
-    await db.ref(`users/${uid}`).set(userData);
+    await db.ref(`users/${userRecord.uid}`).set(userData);
 
-    return res.status(201).json({ message: "User registered successfully", userId: uid, userCoinpayid });
+    // Update referral counts
+    if (validReferralBy) {
+      // LEVEL 1
+      const refUserSnapshot = await db.ref("users")
+        .orderByChild("referralCode")
+        .equalTo(validReferralBy)
+        .once("value");
+
+      if (refUserSnapshot.exists()) {
+        const refUserKey = Object.keys(refUserSnapshot.val())[0];
+        const refUser = refUserSnapshot.val()[refUserKey];
+        const currentLevel1 = refUser.referralRegisterLevel1 || 0;
+
+        await db.ref(`users/${refUserKey}/referralRegisterLevel1`).set(currentLevel1 + 1);
+
+        // LEVEL 2
+        if (refUser.referralBy) {
+          const refUser2Snapshot = await db.ref("users")
+            .orderByChild("referralCode")
+            .equalTo(refUser.referralBy)
+            .once("value");
+
+          if (refUser2Snapshot.exists()) {
+            const refUser2Key = Object.keys(refUser2Snapshot.val())[0];
+            const refUser2 = refUser2Snapshot.val()[refUser2Key];
+            const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
+
+            await db.ref(`users/${refUser2Key}/referralRegisterLevel2`).set(currentLevel2 + 1);
+          }
+        }
+      }
+    }
+
+    return res.status(201).json({
+      message: "User registered and wallets created.",
+      userId: userRecord.uid,
+      vestinooID,
+      coinpayid,
+      walletData,
+    });
   } catch (error) {
-    return res.status(500).json({ error: "Registration failed", details: error.message || error });
+    console.error("[userData.js] Error:", error);
+    return res.status(500).json({
+      error: "An unexpected error occurred.",
+      details: error.message || error,
+    });
   }
 };
