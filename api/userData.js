@@ -98,9 +98,7 @@ module.exports = async (req, res) => {
     }
 
     const uid = userRecord.uid;
-
-    // Generate coinpayid unique to uid
-    const coinpayid = "CPID-" + uid.slice(0, 12);
+    const userCoinpayid = "CPID-" + uid.slice(0, 12);
     const vestinooID = `VTN-${crypto.randomBytes(2).toString("hex")}`;
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
@@ -126,7 +124,7 @@ module.exports = async (req, res) => {
 
     let walletData;
     try {
-      walletData = await callCreateWalletApi({ userCoinpayid: coinpayid });
+      walletData = await callCreateWalletApi({ userCoinpayid });
     } catch (error) {
       return res.status(500).json({ error: "Failed to generate wallet", details: error });
     }
@@ -142,7 +140,7 @@ module.exports = async (req, res) => {
       referralBy: validReferralBy,
       level2ReferralBy,
       vestinooID,
-      coinpayid,
+      userCoinpayid,
       userBalance: 0,
       deposit: 0,
       dailyProfit: 0,
@@ -158,7 +156,13 @@ module.exports = async (req, res) => {
       referralRegisterLevel1: 0,
       referralRegisterLevel2: 0,
       createdAt,
-      ...walletData,
+      network: walletData.network,
+      userWalletPrivateKey: walletData.userWalletPrivateKey,
+      userBnbWalletAddress: walletData.userBnbWalletAddress,
+      bnbBep20Address: walletData.bnbBep20Address,
+      usdtBep20Address: walletData.usdtBep20Address,
+      usdcBep20Address: walletData.usdcBep20Address,
+      trxBep20Address: walletData.trxBep20Address
     };
 
     await db.ref(`users/${uid}`).set(userData);
@@ -198,10 +202,9 @@ module.exports = async (req, res) => {
       message: "User registered and wallets created.",
       userId: uid,
       vestinooID,
-      coinpayid,
+      userCoinpayid,
       walletData,
     });
-
   } catch (error) {
     console.error("[userData.js] Error:", error);
     return res.status(500).json({
