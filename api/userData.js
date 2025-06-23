@@ -84,18 +84,21 @@ module.exports = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Create Firebase Auth user
-    let userRecord;
     try {
-      userRecord = await admin.auth().getUserByEmail(normalizedEmail);
+      await admin.auth().getUserByEmail(normalizedEmail);
       return res.status(409).json({ error: "Email already in use" });
-    } catch (e) {
-      userRecord = await admin.auth().createUser({
-        email: normalizedEmail,
-        password,
-        displayName: fullName,
-      });
+    } catch (e) {      
+      if (e.code !== "auth/user-not-found") {        
+        return res.status(500).json({ error: "Error checking email", details: e.message });
+      }
     }
+
+    // 2. Create user in Firebase Auth
+    const userRecord = await admin.auth().createUser({
+      email: normalizedEmail,
+      password,
+      displayName: fullName,
+    });
 
     const uid = userRecord.uid;
     const userCoinpayid = "CPID-" + uid.slice(0, 12);
@@ -103,10 +106,9 @@ module.exports = async (req, res) => {
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
-    // Check referral
+    // 3. Referral check if provided
     let level2ReferralBy = null;
     let validReferralBy = null;
-
     if (referralBy) {
       const refUserSnapshot = await db.ref("users")
         .orderByChild("referralCode")
@@ -118,14 +120,19 @@ module.exports = async (req, res) => {
         validReferralBy = referralBy;
         level2ReferralBy = refUser.referralBy || null;
       } else {
+        // Clean up: delete Auth user
+        await admin.auth().deleteUser(uid);
         return res.status(400).json({ error: "Invalid referral code" });
       }
     }
 
+    // 4. Create wallet
     let walletData;
     try {
       walletData = await callCreateWalletApi({ userCoinpayid });
     } catch (error) {
+      // Clean up Auth user
+      await admin.auth().deleteUser(uid);
       return res.status(500).json({ error: "Failed to generate wallet", details: error });
     }
 
@@ -167,7 +174,7 @@ module.exports = async (req, res) => {
 
     await db.ref(`users/${uid}`).set(userData);
 
-    // Update referral counts
+    // 5. Update referral stats
     if (validReferralBy) {
       const refUserSnapshot = await db.ref("users")
         .orderByChild("referralCode")
