@@ -40,7 +40,10 @@ function callCreateWalletApi(data) {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsedData);
           } else {
-            reject({ error: `createWallet Error: ${res.statusCode}`, response: parsedData });
+            reject({
+              error: `createWallet Error: ${res.statusCode}`,
+              response: parsedData,
+            });
           }
         } catch (e) {
           reject({ error: "Invalid JSON", raw: responseData });
@@ -48,7 +51,10 @@ function callCreateWalletApi(data) {
       });
     });
 
-    req.on("error", (e) => reject({ error: "Request error", details: e }));
+    req.on("error", (e) => {
+      reject({ error: "Request error", details: e });
+    });
+
     req.write(dataString);
     req.end();
   });
@@ -60,7 +66,8 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
   if (req.method === "OPTIONS") return res.status(204).end();
 
-  if (req.headers.origin && req.headers.origin !== "https://vestinoo.pages.dev") {
+  const origin = req.headers.origin;
+  if (origin && origin !== "https://vestinoo.pages.dev") {
     return res.status(403).json({ error: "Forbidden origin" });
   }
 
@@ -77,7 +84,7 @@ module.exports = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Check if email already exists
+    // Check if user already exists
     try {
       await admin.auth().getUserByEmail(normalizedEmail);
       return res.status(409).json({ error: "Email already in use" });
@@ -87,29 +94,27 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Validate referral before user creation
+    // Check referral validity manually by looping through UIDs
     let level2ReferralBy = null;
     let validReferralBy = null;
 
     if (referralBy) {
       const usersSnapshot = await db.ref("users").once("value");
-      let foundRef = null;
-      usersSnapshot.forEach((child) => {
-        const user = child.val();
+      let found = false;
+      usersSnapshot.forEach((childSnapshot) => {
+        const user = childSnapshot.val();
         if (user.referralCode === referralBy) {
-          foundRef = { uid: child.key, data: user };
+          validReferralBy = referralBy;
+          level2ReferralBy = user.referralBy || null;
+          found = true;
         }
       });
 
-      if (foundRef) {
-        validReferralBy = referralBy;
-        level2ReferralBy = foundRef.data.referralBy || null;
-      } else {
+      if (!found) {
         return res.status(400).json({ error: "Invalid referral code" });
       }
     }
 
-    // Create user
     const userRecord = await admin.auth().createUser({
       email: normalizedEmail,
       password,
@@ -125,9 +130,9 @@ module.exports = async (req, res) => {
     let walletData;
     try {
       walletData = await callCreateWalletApi({ userCoinpayid });
-    } catch (err) {
+    } catch (error) {
       await admin.auth().deleteUser(uid);
-      return res.status(500).json({ error: "Failed to generate wallet", details: err });
+      return res.status(500).json({ error: "Failed to generate wallet", details: error });
     }
 
     const createdAt = new Date().toISOString();
@@ -149,7 +154,7 @@ module.exports = async (req, res) => {
       vestBit: 0,
       tsohonUser: "false",
       depositTime: null,
-      wellecomeBonus: 0.50,
+      wellecomeBonus: 0.5,
       referralBonusLeve1: 0,
       referralBonussLeve2: 0,
       level1: "0",
@@ -163,44 +168,33 @@ module.exports = async (req, res) => {
       bnbBep20Address: walletData.bnbBep20Address,
       usdtBep20Address: walletData.usdtBep20Address,
       usdcBep20Address: walletData.usdcBep20Address,
-      trxBep20Address: walletData.trxBep20Address
+      trxBep20Address: walletData.trxBep20Address,
     };
 
     await db.ref(`users/${uid}`).set(userData);
 
-    // Update referrals
+    // Update referral counts manually
     if (validReferralBy) {
-      const ref1Snapshot = await db.ref("users").once("value");
-      let ref1Uid = null, ref2Uid = null;
+      const usersSnapshot = await db.ref("users").once("value");
+      usersSnapshot.forEach(async (childSnapshot) => {
+        const refUser = childSnapshot.val();
+        const key = childSnapshot.key;
+        if (refUser.referralCode === validReferralBy) {
+          const currentLevel1 = refUser.referralRegisterLevel1 || 0;
+          await db.ref(`users/${key}/referralRegisterLevel1`).set(currentLevel1 + 1);
 
-      ref1Snapshot.forEach((child) => {
-        const val = child.val();
-        if (val.referralCode === validReferralBy) {
-          ref1Uid = child.key;
-          if (val.referralBy) {
-            ref2Uid = val.referralBy;
+          if (refUser.referralBy) {
+            usersSnapshot.forEach(async (innerSnapshot) => {
+              const refUser2 = innerSnapshot.val();
+              const key2 = innerSnapshot.key;
+              if (refUser2.referralCode === refUser.referralBy) {
+                const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
+                await db.ref(`users/${key2}/referralRegisterLevel2`).set(currentLevel2 + 1);
+              }
+            });
           }
         }
       });
-
-      if (ref1Uid) {
-        const ref1Count = (await db.ref(`users/${ref1Uid}/referralRegisterLevel1`).once("value")).val() || 0;
-        await db.ref(`users/${ref1Uid}/referralRegisterLevel1`).set(ref1Count + 1);
-      }
-
-      if (ref2Uid) {
-        const ref2Snapshot = await db.ref("users").once("value");
-        ref2Snapshot.forEach((child) => {
-          const val = child.val();
-          if (val.referralCode === ref2Uid) {
-            const ref2Key = child.key;
-            db.ref(`users/${ref2Key}/referralRegisterLevel2`).once("value").then((snap) => {
-              const count = snap.val() || 0;
-              db.ref(`users/${ref2Key}/referralRegisterLevel2`).set(count + 1);
-            });
-          }
-        });
-      }
     }
 
     return res.status(201).json({
@@ -210,11 +204,9 @@ module.exports = async (req, res) => {
       userCoinpayid,
       walletData,
     });
-
   } catch (error) {
-    console.error("[userData.js] Error:", error);
     return res.status(500).json({
-      error: "Unexpected error",
+      error: "An unexpected error occurred.",
       details: error.message || error,
     });
   }
