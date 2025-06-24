@@ -183,7 +183,6 @@
 
   let currentAgent = null;
 
-  // For accurate time on admin device
   function getAdminTime() {
     return new Date().getTime();
   }
@@ -222,7 +221,6 @@
   });
 
   async function loadAllWithdrawalRequests() {
-    // Clear previous boxes
     withdrawContainer.querySelectorAll(".withdraw-box").forEach(e => e.remove());
     noRequests.style.display = "block";
 
@@ -244,14 +242,12 @@
           found = true;
           const withdrawTime = withdrawal.withdrawalTime || 0;
           const hoursDiff = hoursSince(withdrawTime);
-          // < 24 = red, >= 24 = green
           const isExpired = hoursDiff >= 24;
 
           const box = document.createElement("div");
           box.className = "withdraw-box";
           box.setAttribute("data-user", userId);
 
-          // Add status badge
           const badge = document.createElement('span');
           badge.className = `status-badge ${isExpired ? "green" : "red"}`;
           badge.textContent = isExpired ? "OK" : "24h+";
@@ -262,7 +258,7 @@
               <span><strong>#${count++}</strong> ${userData.fullName} (${userId})</span>
               <span>Email: ${userData.email}</span>
               <span>Vestino ID: ${userData.vestinooID}</span>
-              <span>XaiGate ID: ${userData.xaigateUserId}</span>
+              <span>UserCoinpay ID: ${userData.userCoinpayid}</span>
               <span>Amount: $${parseFloat(withdrawal.amount || 0).toFixed(2)}</span>
               <span>Wallet: ${withdrawal.walletAddress}</span>
               <span>Coin: ${withdrawal.coin}</span>
@@ -270,8 +266,8 @@
               <span>Deposit: $${userData.deposit || 0}</span>
               <span>Daily Profit: $${userData.dailyProfit || 0}</span>
               <span>User Balance: $${userData.userBalance || 0}</span>
-              <span>Level1: ${userData.level1 || 0}</span>
-              <span>Level2: ${userData.level2 || 0}</span>
+              <span>Level1: ${userData.referralRegisterLevel1 || 0}</span>
+              <span>Level2: ${userData.referralRegisterLevel2 || 0}</span>
               <span>Requested: ${withdrawal.withdrawalTime ? new Date(withdrawal.withdrawalTime).toLocaleString() : ''}</span>
             </div>
             <div class="actions">
@@ -292,7 +288,6 @@
     if (!found) noRequests.style.display = "block";
   }
 
-  // Only remove withdrawal from approvedWithdrawals (no deduction)
   function handleCancel(userId, withdrawalId, box) {
     if (confirm(`${currentAgent}, are you sure you want to delete this request?`)) {
       remove(ref(db, `users/${userId}/approvedWithdrawals/${withdrawalId}`)).then(() => {
@@ -318,7 +313,7 @@
           walletAddress: withdrawal.walletAddress,
           coin: withdrawal.coin,
           networkId: withdrawal.networkId,
-          xaigateUserId: userData.xaigateUserId
+          userCoinpayid: userData.userCoinpayid
         })
       });
 
@@ -333,25 +328,20 @@
 
       const updates = {};
 
-      // Deduct from balance
       const balance = parseFloat(userData.userBalance || 0);
       updates[`users/${userId}/userBalance`] = parseFloat((balance - totalDeduct).toFixed(2));
 
-      // Move to successfullyPayment
       const successId = `successfullyPayment/${Date.now()}`;
       updates[`users/${userId}/${successId}`] = {
         ...withdrawal,
         withdrawalTime: Date.now()
       };
 
-      // Remove this specific withdrawal request
       updates[`users/${userId}/approvedWithdrawals/${withdrawalId}`] = null;
 
-      // Update total withdrawal
       const oldTotal = parseFloat(userData.totallyWithdraw || 0);
       updates[`users/${userId}/totallyWithdraw`] = parseFloat((oldTotal + withdrawal.amount).toFixed(2));
 
-      // Counting
       const oldCount = parseInt(userData.countingWithdraw || 0);
       updates[`users/${userId}/countingWithdraw`] = oldCount + 1;
 
