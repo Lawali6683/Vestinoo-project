@@ -319,7 +319,7 @@
               <span><strong>#${count++}</strong> ${userData.fullName || ''} (${userId})</span>
               <span>Email: ${userData.email || ''}</span>
               <span>Vestino ID: ${userData.vestinooID || ''}</span>
-              <span>XaiGate ID: ${userData.xaigateUserId || ''}</span>
+              <span>Coin pay ID: ${userData.userCoinpayid || ''}</span>
               <span>
                 Amount: $${amountValue}
                 <button class="btn copy" data-copy="${amountValue}" title="Copy Amount">Copy</button>
@@ -333,8 +333,8 @@
               <span>Deposit: $${userData.deposit || 0}</span>
               <span>Daily Profit: $${userData.dailyProfit || 0}</span>
               <span>User Balance: $${userData.userBalance || 0}</span>
-              <span>Level1: ${userData.level1 || 0}</span>
-              <span>Level2: ${userData.level2 || 0}</span>
+              <span>Level1: ${userData.referralRegisterLevel1 || 0}</span>
+              <span>Level2: ${userData.referralRegisterLevel2 || 0}</span>
               <span>Requested: ${withdrawal.withdrawalTime ? new Date(withdrawal.withdrawalTime).toLocaleString() : ''}</span>
             </div>
             <div class="actions">
