@@ -17,9 +17,6 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
-/**
- * Create user wallet by calling external API.
- */
 function callCreateWalletApi(data) {
   return new Promise((resolve, reject) => {
     const dataString = JSON.stringify(data);
@@ -63,18 +60,16 @@ function callCreateWalletApi(data) {
   });
 }
 
-/**
- * Send Firebase email verification link to user after registration.
- * The actionCodeSettings can specify a redirect URL after verification.
- */
-async function sendEmailVerification(user, redirectUrl) {
-  const actionCodeSettings = {
-    url: `${redirectUrl}?email=${encodeURIComponent(user.email)}`,
-    handleCodeInApp: false, // This means the verification will open in browser, not in app
-  };
-  // Generate the verification link
-  const link = await admin.auth().generateEmailVerificationLink(user.email, actionCodeSettings);
-  return link;
+async function sendEmail(to, subject, htmlContent) {
+  const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ to, subject, htmlContent }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to send email");
 }
 
 module.exports = async (req, res) => {
@@ -101,7 +96,6 @@ module.exports = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Check if user already exists
     try {
       await admin.auth().getUserByEmail(normalizedEmail);
       return res.status(409).json({ error: "Email already in use" });
@@ -111,7 +105,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Check referral validity manually by looping through UIDs
     let level2ReferralBy = null;
     let validReferralBy = null;
 
@@ -126,13 +119,11 @@ module.exports = async (req, res) => {
           found = true;
         }
       });
-
       if (!found) {
         return res.status(400).json({ error: "Invalid referral code" });
       }
     }
 
-    // Create the Firebase user
     const userRecord = await admin.auth().createUser({
       email: normalizedEmail,
       password,
@@ -191,53 +182,33 @@ module.exports = async (req, res) => {
 
     await db.ref(`users/${uid}`).set(userData);
 
-    // Update referral counts manually
-    if (validReferralBy) {
-      const usersSnapshot = await db.ref("users").once("value");
-      usersSnapshot.forEach(async (childSnapshot) => {
-        const refUser = childSnapshot.val();
-        const key = childSnapshot.key;
-        if (refUser.referralCode === validReferralBy) {
-          const currentLevel1 = refUser.referralRegisterLevel1 || 0;
-          await db.ref(`users/${key}/referralRegisterLevel1`).set(currentLevel1 + 1);
+    const emailVerifyLink = await admin.auth().generateEmailVerificationLink(normalizedEmail);
+    const redirectLink = emailVerifyLink.includes("emailVerify")
+      ? emailVerifyLink
+      : `https://vestinoo.pages.dev/emailVerify`;
 
-          if (refUser.referralBy) {
-            usersSnapshot.forEach(async (innerSnapshot) => {
-              const refUser2 = innerSnapshot.val();
-              const key2 = innerSnapshot.key;
-              if (refUser2.referralCode === refUser.referralBy) {
-                const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
-                await db.ref(`users/${key2}/referralRegisterLevel2`).set(currentLevel2 + 1);
-              }
-            });
-          }
-        }
-      });
-    }
+    const htmlContent = `
+      <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4">
+        <div style="max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)">
+          <div style="text-align:center">
+            <img src="https://vestinoo.pages.dev/logo" alt="Vestinoo Logo" width="120">
+            <h2 style="color:#2a8ae2">Verify Your Email</h2>
+            <p>Welcome <strong>${fullName}</strong>! Please click the button below to verify your email address and activate your Vestinoo account.</p>
+            <a href="${redirectLink}" style="display:inline-block;margin-top:20px;padding:12px 25px;background-color:#2a8ae2;color:#fff;text-decoration:none;border-radius:5px">Verify Email</a>
+            <p style="margin-top:30px;font-size:12px;color:#999">If you didn’t request this email, you can safely ignore it.</p>
+          </div>
+        </div>
+      </div>
+    `;
 
-    // Send email verification link using Firebase Admin SDK
-    let verifyEmailLink;
-    try {
-      verifyEmailLink = await sendEmailVerification(userRecord, "https://vestinoo.pages.dev/emailVerify");    
-    } catch (error) {     
-      return res.status(201).json({
-        message: "User registered, wallets created, but failed to send verification link.",
-        userId: uid,
-        vestinooID,
-        userCoinpayid,
-        walletData,
-        emailVerifyLink: null,
-        error: error.message || error,
-      });
-    }
+    await sendEmail(normalizedEmail, "Vestinoo Email Verification", htmlContent);
 
     return res.status(201).json({
-      message: "User registered and wallets created.",
+      message: "User registered. Email verification sent.",
       userId: uid,
       vestinooID,
       userCoinpayid,
       walletData,
-      emailVerifyLink: verifyEmailLink 
     });
   } catch (error) {
     return res.status(500).json({
