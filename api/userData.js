@@ -17,6 +17,9 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
+/**
+ * Create user wallet by calling external API.
+ */
 function callCreateWalletApi(data) {
   return new Promise((resolve, reject) => {
     const dataString = JSON.stringify(data);
@@ -58,6 +61,20 @@ function callCreateWalletApi(data) {
     req.write(dataString);
     req.end();
   });
+}
+
+/**
+ * Send Firebase email verification link to user after registration.
+ * The actionCodeSettings can specify a redirect URL after verification.
+ */
+async function sendEmailVerification(user, redirectUrl) {
+  const actionCodeSettings = {
+    url: `${redirectUrl}?email=${encodeURIComponent(user.email)}`,
+    handleCodeInApp: false, // This means the verification will open in browser, not in app
+  };
+  // Generate the verification link
+  const link = await admin.auth().generateEmailVerificationLink(user.email, actionCodeSettings);
+  return link;
 }
 
 module.exports = async (req, res) => {
@@ -115,6 +132,7 @@ module.exports = async (req, res) => {
       }
     }
 
+    // Create the Firebase user
     const userRecord = await admin.auth().createUser({
       email: normalizedEmail,
       password,
@@ -197,12 +215,29 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Send email verification link using Firebase Admin SDK
+    let verifyEmailLink;
+    try {
+      verifyEmailLink = await sendEmailVerification(userRecord, "https://vestinoo.pages.dev/emailVerify");    
+    } catch (error) {     
+      return res.status(201).json({
+        message: "User registered, wallets created, but failed to send verification link.",
+        userId: uid,
+        vestinooID,
+        userCoinpayid,
+        walletData,
+        emailVerifyLink: null,
+        error: error.message || error,
+      });
+    }
+
     return res.status(201).json({
       message: "User registered and wallets created.",
       userId: uid,
       vestinooID,
       userCoinpayid,
       walletData,
+      emailVerifyLink: verifyEmailLink 
     });
   } catch (error) {
     return res.status(500).json({
