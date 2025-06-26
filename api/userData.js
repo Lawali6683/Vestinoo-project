@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const https = require("https");
+const fetch = require("node-fetch");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
@@ -182,6 +183,29 @@ module.exports = async (req, res) => {
 
     await db.ref(`users/${uid}`).set(userData);
 
+    if (validReferralBy) {
+      const usersSnapshot = await db.ref("users").once("value");
+      usersSnapshot.forEach(async (childSnapshot) => {
+        const refUser = childSnapshot.val();
+        const key = childSnapshot.key;
+        if (refUser.referralCode === validReferralBy) {
+          const currentLevel1 = refUser.referralRegisterLevel1 || 0;
+          await db.ref(`users/${key}/referralRegisterLevel1`).set(currentLevel1 + 1);
+
+          if (refUser.referralBy) {
+            usersSnapshot.forEach(async (innerSnapshot) => {
+              const refUser2 = innerSnapshot.val();
+              const key2 = innerSnapshot.key;
+              if (refUser2.referralCode === refUser.referralBy) {
+                const currentLevel2 = refUser2.referralRegisterLevel2 || 0;
+                await db.ref(`users/${key2}/referralRegisterLevel2`).set(currentLevel2 + 1);
+              }
+            });
+          }
+        }
+      });
+    }
+
     const emailVerifyLink = await admin.auth().generateEmailVerificationLink(normalizedEmail);
     const redirectLink = emailVerifyLink.includes("emailVerify")
       ? emailVerifyLink
@@ -191,7 +215,7 @@ module.exports = async (req, res) => {
       <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4">
         <div style="max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)">
           <div style="text-align:center">
-            <img src="https://vestinoo.pages.dev/logo" alt="Vestinoo Logo" width="120">
+            <img src="https://vestinoo.pages.dev/log" alt="Vestinoo Logo" width="120">
             <h2 style="color:#2a8ae2">Verify Your Email</h2>
             <p>Welcome <strong>${fullName}</strong>! Please click the button below to verify your email address and activate your Vestinoo account.</p>
             <a href="${redirectLink}" style="display:inline-block;margin-top:20px;padding:12px 25px;background-color:#2a8ae2;color:#fff;text-decoration:none;border-radius:5px">Verify Email</a>
