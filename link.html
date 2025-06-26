@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi Uploader | Haruna Lawali</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+      :root {
+  --main: #2b4162;
+  --accent: #0b6e4f;
+  --bg: #f1f6f9;
+  --white: #fff;
+  --gray: #eaeaea;
+  --danger: #f87171;
+  --shadow: 0 8px 24px rgba(43,65,98,0.08);
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Arial', sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 430px;
+  margin: 40px auto;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  border-radius: 18px;
+  padding: 24px 20px 30px 20px;
+  position: relative;
+}
+
+header h1 {
+  font-size: 1.38rem;
+  margin: 0 0 16px 0;
+  color: var(--main);
+  text-align: center;
+  font-weight: 700;
+}
+
+.upload-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  justify-content: center;
+}
+
+.upload-buttons button {
+  flex: 1;
+  background: var(--accent);
+  color: var(--white);
+  border: none;
+  font-size: 1rem;
+  padding: 12px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background .18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.upload-buttons button:hover {
+  background: #09714c;
+}
+
+#previewSection {
+  background: var(--gray);
+  margin-top: 12px;
+  padding: 15px 15px 10px 15px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(43,65,98,0.08);
+}
+#previewSection.hidden {
+  display: none;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+#previewType {
+  font-weight: 600;
+  color: var(--main);
+  font-size: 1.1rem;
+  letter-spacing: .1px;
+}
+#removeBtn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--danger);
+  cursor: pointer;
+  transition: color .18s;
+}
+#removeBtn:hover {
+  color: #dc2626;
+}
+
+.media-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+  min-height: 110px;
+}
+
+.media-preview img,
+.media-preview video,
+.media-preview audio {
+  max-width: 98%;
+  max-height: 180px;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(43,65,98,0.09);
+}
+
+.media-preview audio {
+  width: 100%;
+  outline: none;
+}
+
+.link-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 3px;
+}
+.link-actions.hidden {
+  display: none;
+}
+#fileLink {
+  flex: 1;
+  font-size: .98rem;
+  padding: 6px 8px;
+  border: 1px solid #d6d7e0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #324;
+  overflow-x: auto;
+}
+#copyBtn {
+  background: var(--accent);
+  color: var(--white);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background .18s;
+}
+#copyBtn:hover {
+  background: #09714c;
+}
+
+#notif {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--white);
+  padding: 10px 28px;
+  border-radius: 8px;
+  font-size: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .26s;
+  z-index: 100;
+}
+
+#notif.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 500px) {
+  .container {
+    max-width: 98vw;
+    padding: 13px 3vw 20px 3vw;
+  }
+  .media-preview img, .media-preview video, .media-preview audio {
+    max-width: 96vw;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Welcome Haruna Lawali,</h1>
+    </header>
+    <div class="upload-buttons">
+      <button id="videoBtn"><i class="fa-solid fa-video"></i> Upload Video</button>
+      <button id="imageBtn"><i class="fa-solid fa-image"></i> Upload Image</button>
+      <button id="audioBtn"><i class="fa-solid fa-music"></i> Upload Audio</button>
+    </div>
+    <input type="file" id="fileInput" hidden>
+    <section id="previewSection" class="hidden">
+      <div class="preview-header">
+        <span id="previewType"></span>
+        <button id="removeBtn" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="media-preview" id="mediaPreview"></div>
+      <div class="link-actions hidden" id="linkActions">
+        <input type="text" readonly id="fileLink">
+        <button id="copyBtn" title="Copy Link"><i class="fa-regular fa-copy"></i></button>
+      </div>
+    </section>
+    <div id="notif"></div>
+  </div>
+  <script>
+      const fileInput = document.getElementById("fileInput");
+const videoBtn = document.getElementById("videoBtn");
+const imageBtn = document.getElementById("imageBtn");
+const audioBtn = document.getElementById("audioBtn");
+const previewSection = document.getElementById("previewSection");
+const previewType = document.getElementById("previewType");
+const mediaPreview = document.getElementById("mediaPreview");
+const removeBtn = document.getElementById("removeBtn");
+const linkActions = document.getElementById("linkActions");
+const fileLink = document.getElementById("fileLink");
+const copyBtn = document.getElementById("copyBtn");
+const notif = document.getElementById("notif");
+
+let currentType = null;
+let lastFile = null;
+
+function showNotif(msg, color) {
+  notif.textContent = msg;
+  notif.style.background = color || 'var(--accent)';
+  notif.classList.add('show');
+  setTimeout(() => notif.classList.remove('show'), 1700);
+}
+
+// File type selection
+videoBtn.onclick = () => openFilePicker("video/*", "video");
+imageBtn.onclick = () => openFilePicker("image/*", "image");
+audioBtn.onclick = () => openFilePicker("audio/*", "audio");
+
+function openFilePicker(accept, type) {
+  fileInput.value = "";
+  fileInput.accept = accept;
+  fileInput.multiple = false;
+  currentType = type;
+  fileInput.click();
+}
+
+// File selected
+fileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (currentType === "video" && file.size > 210 * 1024 * 1024) {
+    showNotif("Video ya fi 200MB. Zabi wata video", "var(--danger)");
+    return;
+  }
+  if (currentType === "image" && file.size > 32 * 1024 * 1024) {
+    showNotif("Image ya fi 32MB. Zabi wata image", "var(--danger)");
+    return;
+  }
+  if (currentType === "audio" && file.size > 70 * 1024 * 1024) {
+    showNotif("Audio ya fi 70MB. Zabi wata audio", "var(--danger)");
+    return;
+  }
+  showPreview(file, currentType);
+  lastFile = file;
+  previewType.textContent = "Uploading...";
+  linkActions.classList.add("hidden");
+  await doUpload(file, currentType);
+};
+
+function showPreview(file, type) {
+  previewSection.classList.remove("hidden");
+  let url = URL.createObjectURL(file);
+  let el;
+  if (type === "image") {
+    el = document.createElement("img");
+    el.src = url;
+    el.alt = "uploaded image";
+  } else if (type === "video") {
+    el = document.createElement("video");
+    el.src = url;
+    el.controls = true;
+  } else if (type === "audio") {
+    el = document.createElement("audio");
+    el.src = url;
+    el.controls = true;
+  }
+  mediaPreview.innerHTML = "";
+  mediaPreview.appendChild(el);
+}
+
+removeBtn.onclick = () => {
+  previewSection.classList.add("hidden");
+  mediaPreview.innerHTML = "";
+  lastFile = null;
+  linkActions.classList.add("hidden");
+};
+
+async function doUpload(file, type) {
+  previewType.textContent = {
+    image: "Uploading Image...",
+    video: "Uploading Video...",
+    audio: "Uploading Audio..."
+  }[type];
+
+  let url = '';
+  try {
+    if (type === "image") {
+      url = await uploadImageToImgur(file);
+    } else if (type === "video" || type === "audio") {
+      url = await uploadToCatbox(file, type);
+    }
+    if (!url) throw new Error("Bai samu link ba");
+    previewType.textContent = capitalize(type) + " Uploaded!";
+    fileLink.value = url;
+    linkActions.classList.remove("hidden");
+    showNotif(capitalize(type) + " uploaded successfully!");
+  } catch (err) {
+    previewType.textContent = "Upload error!";
+    showNotif("Error: " + err.message, "var(--danger)");
+  }
+}
+
+async function uploadImageToImgur(file) {
+  // Rename image to .png if not supported
+  const validTypes = ["image/jpeg", "image/png", "image/gif", "image/tiff", "image/bmp", "image/webp"];
+  let imageFile = file;
+  if (!validTypes.includes(file.type)) {
+    // Convert to .png by drawing on canvas
+    const blob = await fileToPngBlob(file);
+    imageFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".png", {type: "image/png"});
+  }
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  const response = await fetch("https://api.imgur.com/3/image", {
+    method: "POST",
+    headers: {
+      Authorization: "Client-ID 5acf7eff9c91660"
+    },
+    body: formData
+  });
+  const data = await response.json();
+  if (data.success) return data.data.link;
+  throw new Error(data.data.error || "Imgur error");
+}
+
+async function fileToPngBlob(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, "image/png");
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadToCatbox(file, type) {
+  const formData = new FormData();
+  formData.append("reqtype", "fileupload");
+  let ext = file.name.split('.').pop().toLowerCase();
+  let base = file.name.replace(/\.[^/.]+$/, '');
+  if (type === "audio") {
+    if (!["mp3","wav","ogg","m4a"].includes(ext)) ext = "mp3";
+    formData.append("fileToUpload", new File([file], base + "." + ext, {type: file.type}));
+  } else if (type === "video") {
+    if (!["mp4","webm","mov","avi"].includes(ext)) ext = "mp4";
+    formData.append("fileToUpload", new File([file], base + "." + ext, {type: file.type}));
+  }
+  else {
+    formData.append("fileToUpload", file);
+  }
+  const response = await fetch("https://catbox.moe/user/api.php", {
+    method: "POST",
+    body: formData
+  });
+  const url = await response.text();
+  if (/^https?:\/\//.test(url)) return url.trim();
+  throw new Error("Catbox: " + url);
+}
+
+// Copy to clipboard
+copyBtn.onclick = () => {
+  if (!fileLink.value) return;
+  navigator.clipboard.writeText(fileLink.value);
+  showNotif("Copy link successfully!");
+};
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+  </script>
+</body>
+</html>
