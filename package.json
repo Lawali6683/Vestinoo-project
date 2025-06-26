@@ -1,5 +1,5 @@
 {
-  "name": "vestinio-project",
+  "name": "Vestinoo",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -7,10 +7,11 @@
     "start": "node api/webhook.js"
   },
   "dependencies": {
-  "firebase-admin": "^11.10.1",
-  "express": "^4.17.1",
-  "body-parser": "^1.19.0",
-  "crypto": "latest"
+    "firebase-admin": "^11.10.1",
+    "express": "^4.17.1",
+    "body-parser": "^1.19.0",
+    "crypto": "latest",
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {},
   "author": "",
