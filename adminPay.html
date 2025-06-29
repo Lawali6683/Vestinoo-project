@@ -218,15 +218,24 @@ const alertBox = document.getElementById("alertBox");
 let currentAgent = null;
 
 // --- EMAIL UTILS ---
-async function sendEmail(to, subject, htmlContent, emailId) {
-  const res = await fetch("https://your-project.vercel.app/api/email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ to, subject, htmlContent, emailId }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to send email");
+async function sendEmail(to, subject, htmlContent) {
+  try {
+    const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, htmlContent })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("❌ Email API error:", data);
+      throw new Error(data.error || "Failed to send email");
+    }
+    console.log("✅ Email sent successfully:", data.message);
+  } catch (error) {
+    console.error("❌ sendEmail() failed:", error);
+  }
 }
+
 
 function generateEmailId(prefix = "VNOO") {
   return `${prefix}-${Math.floor(100000 + Math.random() * 900000)}-${Date.now()}`;
