@@ -18,6 +18,23 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
+// Send email using your email.js service
+async function sendEmail(to, subject, htmlContent) {
+  try {
+    const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, htmlContent }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to send email");
+    return data;
+  } catch (error) {
+    throw new Error("Email send error: " + error.message);
+  }
+}
+
+// Create wallet
 function callCreateWalletApi(data) {
   return new Promise((resolve, reject) => {
     const dataString = JSON.stringify(data);
@@ -61,18 +78,6 @@ function callCreateWalletApi(data) {
   });
 }
 
-async function sendEmail(to, subject, htmlContent) {
-  const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ to, subject, htmlContent }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to send email");
-}
-
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -97,6 +102,7 @@ module.exports = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
+    // Check if email is already used
     try {
       await admin.auth().getUserByEmail(normalizedEmail);
       return res.status(409).json({ error: "Email already in use" });
@@ -137,6 +143,7 @@ module.exports = async (req, res) => {
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
+    // Wallet API
     let walletData;
     try {
       walletData = await callCreateWalletApi({ userCoinpayid });
@@ -183,6 +190,7 @@ module.exports = async (req, res) => {
 
     await db.ref(`users/${uid}`).set(userData);
 
+    // Referral Updates
     if (validReferralBy) {
       const usersSnapshot = await db.ref("users").once("value");
       usersSnapshot.forEach(async (childSnapshot) => {
@@ -191,7 +199,6 @@ module.exports = async (req, res) => {
         if (refUser.referralCode === validReferralBy) {
           const currentLevel1 = refUser.referralRegisterLevel1 || 0;
           await db.ref(`users/${key}/referralRegisterLevel1`).set(currentLevel1 + 1);
-
           if (refUser.referralBy) {
             usersSnapshot.forEach(async (innerSnapshot) => {
               const refUser2 = innerSnapshot.val();
@@ -206,6 +213,7 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Prepare Email
     const emailVerifyLink = await admin.auth().generateEmailVerificationLink(normalizedEmail);
     const redirectLink = emailVerifyLink.includes("emailVerify")
       ? emailVerifyLink
@@ -225,7 +233,13 @@ module.exports = async (req, res) => {
       </div>
     `;
 
-    await sendEmail(normalizedEmail, "Vestinoo Email Verification", htmlContent);
+    try {
+      await sendEmail(normalizedEmail, "Vestinoo Email Verification", htmlContent);
+    } catch (emailErr) {
+      await admin.auth().deleteUser(uid);
+      await db.ref(`users/${uid}`).remove();
+      return res.status(500).json({ error: "User registration canceled. Failed to send verification email." });
+    }
 
     return res.status(201).json({
       message: "User registered. Email verification sent.",
@@ -234,6 +248,7 @@ module.exports = async (req, res) => {
       userCoinpayid,
       walletData,
     });
+
   } catch (error) {
     return res.status(500).json({
       error: "An unexpected error occurred.",
