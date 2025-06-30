@@ -1,7 +1,6 @@
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const https = require("https");
-const fetch = require("node-fetch");
 
 const API_AUTH_KEY = process.env.API_AUTH_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
@@ -18,23 +17,6 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
-// Send email using your email.js service
-async function sendEmail(to, subject, htmlContent) {
-  try {
-    const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, subject, htmlContent }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to send email");
-    return data;
-  } catch (error) {
-    throw new Error("Email send error: " + error.message);
-  }
-}
-
-// Create wallet
 function callCreateWalletApi(data) {
   return new Promise((resolve, reject) => {
     const dataString = JSON.stringify(data);
@@ -102,7 +84,7 @@ module.exports = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Check if email is already used
+    // Check if user already exists
     try {
       await admin.auth().getUserByEmail(normalizedEmail);
       return res.status(409).json({ error: "Email already in use" });
@@ -112,6 +94,7 @@ module.exports = async (req, res) => {
       }
     }
 
+    // Check referral validity manually by looping through UIDs
     let level2ReferralBy = null;
     let validReferralBy = null;
 
@@ -126,6 +109,7 @@ module.exports = async (req, res) => {
           found = true;
         }
       });
+
       if (!found) {
         return res.status(400).json({ error: "Invalid referral code" });
       }
@@ -143,7 +127,6 @@ module.exports = async (req, res) => {
     const referralCode = crypto.randomBytes(6).toString("hex").toUpperCase();
     const referralLink = `https://vestinoo.pages.dev/?ref=${referralCode}`;
 
-    // Wallet API
     let walletData;
     try {
       walletData = await callCreateWalletApi({ userCoinpayid });
@@ -190,7 +173,7 @@ module.exports = async (req, res) => {
 
     await db.ref(`users/${uid}`).set(userData);
 
-    // Referral Updates
+    // Update referral counts manually
     if (validReferralBy) {
       const usersSnapshot = await db.ref("users").once("value");
       usersSnapshot.forEach(async (childSnapshot) => {
@@ -199,6 +182,7 @@ module.exports = async (req, res) => {
         if (refUser.referralCode === validReferralBy) {
           const currentLevel1 = refUser.referralRegisterLevel1 || 0;
           await db.ref(`users/${key}/referralRegisterLevel1`).set(currentLevel1 + 1);
+
           if (refUser.referralBy) {
             usersSnapshot.forEach(async (innerSnapshot) => {
               const refUser2 = innerSnapshot.val();
@@ -213,42 +197,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Prepare Email
-    const emailVerifyLink = await admin.auth().generateEmailVerificationLink(normalizedEmail);
-    const redirectLink = emailVerifyLink.includes("emailVerify")
-      ? emailVerifyLink
-      : `https://vestinoo.pages.dev/emailVerify`;
-
-    const htmlContent = `
-      <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4">
-        <div style="max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)">
-          <div style="text-align:center">
-            <img src="https://vestinoo.pages.dev/log" alt="Vestinoo Logo" width="120">
-            <h2 style="color:#2a8ae2">Verify Your Email</h2>
-            <p>Welcome <strong>${fullName}</strong>! Please click the button below to verify your email address and activate your Vestinoo account.</p>
-            <a href="${redirectLink}" style="display:inline-block;margin-top:20px;padding:12px 25px;background-color:#2a8ae2;color:#fff;text-decoration:none;border-radius:5px">Verify Email</a>
-            <p style="margin-top:30px;font-size:12px;color:#999">If you didn’t request this email, you can safely ignore it.</p>
-          </div>
-        </div>
-      </div>
-    `;
-
-    try {
-      await sendEmail(normalizedEmail, "Vestinoo Email Verification", htmlContent);
-    } catch (emailErr) {
-      await admin.auth().deleteUser(uid);
-      await db.ref(`users/${uid}`).remove();
-      return res.status(500).json({ error: "User registration canceled. Failed to send verification email." });
-    }
-
     return res.status(201).json({
-      message: "User registered. Email verification sent.",
+      message: "User registered and wallets created.",
       userId: uid,
       vestinooID,
       userCoinpayid,
       walletData,
     });
-
   } catch (error) {
     return res.status(500).json({
       error: "An unexpected error occurred.",
