@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Multi Uploader | Haruna Lawali</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- You can still use your style.css if you want, but here is improved internal CSS below -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <style>
       :root {
@@ -15,12 +16,14 @@
         --danger: #f87171;
         --shadow: 0 8px 24px rgba(43,65,98,0.08);
       }
+
       body {
         margin: 0;
         font-family: 'Segoe UI', 'Arial', sans-serif;
         background: var(--bg);
         min-height: 100vh;
       }
+
       .container {
         max-width: 430px;
         margin: 40px auto;
@@ -30,6 +33,7 @@
         padding: 24px 20px 30px 20px;
         position: relative;
       }
+
       header h1 {
         font-size: 1.38rem;
         margin: 0 0 16px 0;
@@ -37,12 +41,14 @@
         text-align: center;
         font-weight: 700;
       }
+
       .upload-buttons {
         display: flex;
         gap: 8px;
         margin-bottom: 18px;
         justify-content: center;
       }
+
       .upload-buttons button {
         flex: 1;
         background: var(--accent);
@@ -62,6 +68,7 @@
       .upload-buttons button:hover {
         background: #09714c;
       }
+
       #previewSection {
         background: var(--gray);
         margin-top: 12px;
@@ -72,6 +79,7 @@
       #previewSection.hidden {
         display: none;
       }
+
       .preview-header {
         display: flex;
         justify-content: space-between;
@@ -95,6 +103,7 @@
       #removeBtn:hover {
         color: #dc2626;
       }
+
       .media-preview {
         display: flex;
         justify-content: center;
@@ -102,6 +111,7 @@
         margin-bottom: 12px;
         min-height: 110px;
       }
+
       .media-preview img,
       .media-preview video,
       .media-preview audio {
@@ -111,10 +121,47 @@
         background: #fff;
         box-shadow: 0 1px 3px rgba(43,65,98,0.09);
       }
+
       .media-preview audio {
         width: 100%;
         outline: none;
       }
+
+      .audio-record {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .audio-record .controls {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 7px;
+      }
+      .audio-record button {
+        background: var(--accent);
+        color: var(--white);
+        border: none;
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background .18s;
+      }
+      .audio-record button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .audio-record button:hover:not(:disabled) {
+        background: #09714c;
+      }
+      .audio-record .timer {
+        font-size: 1.08rem;
+        color: var(--main);
+        font-weight: bold;
+      }
+
       .link-actions {
         display: flex;
         gap: 7px;
@@ -146,6 +193,7 @@
       #copyBtn:hover {
         background: #09714c;
       }
+
       #notif {
         position: fixed;
         bottom: 22px;
@@ -161,10 +209,12 @@
         transition: opacity .26s;
         z-index: 100;
       }
+
       #notif.show {
         opacity: 1;
         pointer-events: auto;
       }
+
       @media (max-width: 500px) {
         .container {
           max-width: 98vw;
@@ -175,10 +225,6 @@
         }
       }
   </style>
-  <!-- image compression -->
-  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.min.js"></script>
-  <!-- ffmpeg wasm -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -191,6 +237,16 @@
       <button id="audioBtn"><i class="fa-solid fa-music"></i> Upload Audio</button>
     </div>
     <input type="file" id="fileInput" hidden>
+    <!-- Audio recording UI, show only if needed -->
+    <section class="audio-record" id="audioRecordSection" style="display:none;">
+      <div class="controls">
+        <button id="startRecBtn"><i class="fa-solid fa-microphone"></i> Start</button>
+        <button id="stopRecBtn" disabled><i class="fa-solid fa-stop"></i> Stop</button>
+        <span class="timer" id="recTimer">00:00</span>
+      </div>
+      <audio id="recordedAudio" controls style="display:none;"></audio>
+      <button id="useRecordedBtn" style="display:none;">Use & Upload</button>
+    </section>
     <section id="previewSection" class="hidden">
       <div class="preview-header">
         <span id="previewType"></span>
@@ -205,10 +261,7 @@
     <div id="notif"></div>
   </div>
   <script>
-    // For ffmpeg.js CDN. Get createFFmpeg from FFmpeg global.
-    const { createFFmpeg } = FFmpeg;
-    let ffmpeg = null;
-
+    // ========== DOM ELEMENTS ==========
     const fileInput = document.getElementById("fileInput");
     const videoBtn = document.getElementById("videoBtn");
     const imageBtn = document.getElementById("imageBtn");
@@ -222,20 +275,46 @@
     const copyBtn = document.getElementById("copyBtn");
     const notif = document.getElementById("notif");
 
+    // Audio record UI
+    const audioRecordSection = document.getElementById("audioRecordSection");
+    const startRecBtn = document.getElementById("startRecBtn");
+    const stopRecBtn = document.getElementById("stopRecBtn");
+    const recTimer = document.getElementById("recTimer");
+    const recordedAudio = document.getElementById("recordedAudio");
+    const useRecordedBtn = document.getElementById("useRecordedBtn");
+
     let currentType = null;
     let lastFile = null;
+    let recChunks = [];
+    let recMediaRecorder = null;
+    let recStartTime = null;
+    let recInterval = null;
+    let recBlob = null;
 
     function showNotif(msg, color) {
       notif.textContent = msg;
       notif.style.background = color || 'var(--accent)';
       notif.classList.add('show');
-      setTimeout(() => notif.classList.remove('show'), 1900);
+      setTimeout(() => notif.classList.remove('show'), 1700);
     }
 
-    // File type selection
-    videoBtn.onclick = () => openFilePicker("video/*", "video");
-    imageBtn.onclick = () => openFilePicker("image/*", "image");
-    audioBtn.onclick = () => openFilePicker("audio/*", "audio");
+    // ========== UPLOAD BUTTONS ==========
+    videoBtn.onclick = () => {
+      audioRecordSection.style.display = 'none';
+      openFilePicker("video/*", "video");
+    };
+    imageBtn.onclick = () => {
+      audioRecordSection.style.display = 'none';
+      openFilePicker("image/*", "image");
+    };
+    audioBtn.onclick = () => {
+      // Show record UI and file picker for audio
+      audioRecordSection.style.display = '';
+      previewSection.classList.add("hidden");
+      linkActions.classList.add("hidden");
+      // Also allow picking audio file if preferred
+      openFilePicker("audio/*,audio/webm", "audio");
+    };
 
     function openFilePicker(accept, type) {
       fileInput.value = "";
@@ -245,7 +324,7 @@
       fileInput.click();
     }
 
-    // File selected
+    // ========== FILE SELECTION HANDLER ==========
     fileInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -268,6 +347,7 @@
       await doUpload(file, currentType);
     };
 
+    // ========== PREVIEW ==========
     function showPreview(file, type) {
       previewSection.classList.remove("hidden");
       let url = URL.createObjectURL(file);
@@ -296,55 +376,49 @@
       linkActions.classList.add("hidden");
     };
 
-    async function doUpload(file, type) {
-      previewType.textContent = {
-        image: "Uploading Image...",
-        video: "Uploading Video...",
-        audio: "Uploading Audio..."
-      }[type];
-
-      let url = '';
-      try {
-        if (type === "image") {
-          url = await uploadImageWorkflow(file);
-        } else if (type === "audio") {
-          url = await uploadAudioWorkflow(file);
-        } else if (type === "video") {
-          url = await uploadToCatbox(file, type); // fallback for video
-        }
-        if (!url) throw new Error("Bai samu link ba");
-        previewType.textContent = capitalize(type) + " Uploaded!";
-        fileLink.value = url;
-        linkActions.classList.remove("hidden");
-        showNotif(capitalize(type) + " uploaded successfully!");
-      } catch (err) {
-        previewType.textContent = "Upload error!";
-        showNotif("Error: " + err.message, "var(--danger)");
-      }
-    }
-
-    // ========== IMAGE UPLOAD SECTION (IMGUR & POSTIMAGES with browser-image-compression) ==========
-    function renameImageFile(file) {
-      const random4 = Math.random().toString(36).substring(2, 6);
-      return new File([file], `${random4}_${Date.now()}.png`, { type: 'image/png' });
-    }
+    // ========== IMAGE UPLOAD (IMGUR + fallback POSTIMAGES) ==========
     async function compressImage(file) {
-      const options = { maxSizeMB: 0.7, maxWidthOrHeight: 1024, useWebWorker: true };
-      const compressed = await window.imageCompression(file, options);
-      return renameImageFile(compressed);
+      // Basic browser compression (no external lib for size)
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = ev => {
+          img.onload = () => {
+            let scale = 1;
+            const maxDim = 1024;
+            if (img.width > maxDim || img.height > maxDim) {
+              scale = Math.min(maxDim / img.width, maxDim / img.height);
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+              const random4 = Math.random().toString(36).substring(2, 6);
+              resolve(new File([blob], `${random4}_${Date.now()}.png`, { type: "image/png" }));
+            }, "image/png", 0.7);
+          };
+          img.onerror = reject;
+          img.src = ev.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
     }
+
     async function uploadToImgur(file) {
       const formData = new FormData();
       formData.append('image', file);
       const response = await fetch('https://api.imgur.com/3/image', {
         method: 'POST',
-        headers: { Authorization: 'Client-ID 5acf7eff9c91660' }, // replace with your client id if needed
+        headers: { Authorization: 'Client-ID 5acf7eff9c91660' },
         body: formData,
       });
       const data = await response.json();
       if (data.success && data.data && data.data.link) return data.data.link;
       throw new Error('Imgur upload failed');
     }
+
     async function uploadToPostImages(file) {
       const formData = new FormData();
       formData.append('file', file);
@@ -357,6 +431,7 @@
       if (data.url) return data.url;
       throw new Error('PostImages upload failed');
     }
+
     async function uploadImageWorkflow(file) {
       const compressed = await compressImage(file);
       try {
@@ -370,42 +445,31 @@
       }
     }
 
-    // ========== AUDIO UPLOAD SECTION (FFMPEG.WASM, CATBOX, ANONFILES) ==========
-    async function compressAudio(file) {
-      if (!ffmpeg) {
-        ffmpeg = createFFmpeg({ log: false });
-        await ffmpeg.load();
-      }
-      const data = await file.arrayBuffer();
-      ffmpeg.FS('writeFile', 'input', new Uint8Array(data));
-      await ffmpeg.run('-i', 'input', '-ac', '1', '-b:a', '64k', 'output.mp3');
-      const out = ffmpeg.FS('readFile', 'output.mp3');
-      const blob = new Blob([out.buffer], { type: 'audio/mp3' });
-      const random4 = Math.random().toString(36).substring(2, 6);
-      return new File([blob], `${random4}_${Date.now()}.mp3`, { type: 'audio/mp3' });
-    }
-    async function uploadToCatbox(file, type) {
-      const formData = new FormData();
-      formData.append("reqtype", "fileupload");
+    // ========== AUDIO UPLOAD (webm only, Catbox + fallback Anonfiles) ==========
+    async function prepareAudioFile(file) {
+      // Make sure file is .mp3 or .webm, else convert name (no ffmpeg)
       let ext = file.name.split('.').pop().toLowerCase();
       let base = file.name.replace(/\.[^/.]+$/, '');
-      if (type === "audio") {
-        if (!["mp3","wav","ogg","m4a"].includes(ext)) ext = "mp3";
-        formData.append("fileToUpload", new File([file], base + "." + ext, {type: file.type}));
-      } else if (type === "video") {
-        if (!["mp4","webm","mov","avi"].includes(ext)) ext = "mp4";
-        formData.append("fileToUpload", new File([file], base + "." + ext, {type: file.type}));
-      } else {
-        formData.append("fileToUpload", file);
+      if (ext !== 'mp3' && ext !== 'webm') {
+        ext = 'mp3';
       }
+      return new File([file], `${base}.` + ext, { type: file.type });
+    }
+
+    async function uploadToCatbox(file) {
+      // Catbox
+      const formData = new FormData();
+      formData.append("reqtype", "fileupload");
+      formData.append("fileToUpload", file);
       const response = await fetch("https://catbox.moe/user/api.php", {
         method: "POST",
         body: formData
       });
       const url = await response.text();
-      if (/^https?:\/\//.test(url)) return url.trim();
-      throw new Error("Catbox: " + url);
+      if (url.startsWith('http')) return url;
+      throw new Error("Catbox upload failed");
     }
+
     async function uploadToAnonfiles(file) {
       const formData = new FormData();
       formData.append('file', file);
@@ -419,28 +483,104 @@
       }
       throw new Error('Anonfiles upload failed');
     }
+
     async function uploadAudioWorkflow(file) {
-      // Compress audio to mp3, mono, 64kbps, rename
-      let compressed;
+      const prepared = await prepareAudioFile(file);
       try {
-        compressed = await compressAudio(file);
-      } catch (err) {
-        showNotif("Audio compressing error: " + err.message, "var(--danger)");
-        throw new Error("Audio compress failed");
-      }
-      // Try catbox, fallback to anonfiles
-      try {
-        return await uploadToCatbox(compressed, "audio");
+        return await uploadToCatbox(prepared);
       } catch (e) {
         try {
-          return await uploadToAnonfiles(compressed);
+          return await uploadToAnonfiles(prepared);
         } catch (err) {
           throw new Error('All audio uploads failed');
         }
       }
     }
 
-    // Copy to clipboard
+    // ========== MAIN UPLOAD LOGIC ==========
+    async function doUpload(file, type) {
+      previewType.textContent = {
+        image: "Uploading Image...",
+        video: "Uploading Video...",
+        audio: "Uploading Audio..."
+      }[type];
+
+      let url = '';
+      try {
+        if (type === "image") {
+          url = await uploadImageWorkflow(file);
+        } else if (type === "video") {
+          url = await uploadToCatbox(file, type);
+        } else if (type === "audio") {
+          url = await uploadAudioWorkflow(file);
+        }
+        if (!url) throw new Error("Bai samu link ba");
+        previewType.textContent = capitalize(type) + " Uploaded!";
+        fileLink.value = url;
+        linkActions.classList.remove("hidden");
+        showNotif(capitalize(type) + " uploaded successfully!");
+      } catch (err) {
+        previewType.textContent = "Upload error!";
+        showNotif("Error: " + (err.message || err), "var(--danger)");
+      }
+    }
+
+    // ========== AUDIO RECORDING (webm) ==========
+    let mediaStream = null;
+    startRecBtn.onclick = async () => {
+      recChunks = [];
+      recBlob = null;
+      recordedAudio.style.display = "none";
+      useRecordedBtn.style.display = "none";
+      recTimer.textContent = "00:00";
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recMediaRecorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm" });
+        recMediaRecorder.ondataavailable = (e) => recChunks.push(e.data);
+        recMediaRecorder.onstop = () => {
+          recBlob = new Blob(recChunks, { type: "audio/webm" });
+          recordedAudio.src = URL.createObjectURL(recBlob);
+          recordedAudio.style.display = "";
+          useRecordedBtn.style.display = "";
+        };
+        recMediaRecorder.start();
+        recStartTime = Date.now();
+        recInterval = setInterval(() => {
+          let elapsed = Math.floor((Date.now() - recStartTime) / 1000);
+          let m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+          let s = String(elapsed % 60).padStart(2, '0');
+          recTimer.textContent = m + ":" + s;
+        }, 500);
+        startRecBtn.disabled = true;
+        stopRecBtn.disabled = false;
+      } catch (err) {
+        showNotif("Recording error: " + err.message, "var(--danger)");
+      }
+    };
+    stopRecBtn.onclick = () => {
+      if (recMediaRecorder && recMediaRecorder.state === "recording") {
+        recMediaRecorder.stop();
+        startRecBtn.disabled = false;
+        stopRecBtn.disabled = true;
+        clearInterval(recInterval);
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+    useRecordedBtn.onclick = async () => {
+      if (!recBlob) return;
+      // Use a random name and .webm extension
+      const random4 = Math.random().toString(36).substring(2, 6);
+      const file = new File([recBlob], `${random4}_${Date.now()}.webm`, { type: "audio/webm" });
+      showPreview(file, "audio");
+      previewType.textContent = "Uploading...";
+      linkActions.classList.add("hidden");
+      await doUpload(file, "audio");
+      audioRecordSection.style.display = "none";
+    };
+
+    // ========== COPY TO CLIPBOARD ==========
     copyBtn.onclick = () => {
       if (!fileLink.value) return;
       navigator.clipboard.writeText(fileLink.value);
