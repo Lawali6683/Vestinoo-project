@@ -16,14 +16,12 @@
   --danger: #f87171;
   --shadow: 0 8px 24px rgba(43,65,98,0.08);
 }
-
 body {
   margin: 0;
   font-family: 'Segoe UI', 'Arial', sans-serif;
   background: var(--bg);
   min-height: 100vh;
 }
-
 .container {
   max-width: 430px;
   margin: 40px auto;
@@ -33,7 +31,6 @@ body {
   padding: 24px 20px 30px 20px;
   position: relative;
 }
-
 header h1 {
   font-size: 1.38rem;
   margin: 0 0 16px 0;
@@ -41,14 +38,12 @@ header h1 {
   text-align: center;
   font-weight: 700;
 }
-
 .upload-buttons {
   display: flex;
   gap: 8px;
   margin-bottom: 18px;
   justify-content: center;
 }
-
 .upload-buttons button {
   flex: 1;
   background: var(--accent);
@@ -68,7 +63,6 @@ header h1 {
 .upload-buttons button:hover {
   background: #09714c;
 }
-
 #previewSection {
   background: var(--gray);
   margin-top: 12px;
@@ -79,7 +73,6 @@ header h1 {
 #previewSection.hidden {
   display: none;
 }
-
 .preview-header {
   display: flex;
   justify-content: space-between;
@@ -103,7 +96,6 @@ header h1 {
 #removeBtn:hover {
   color: #dc2626;
 }
-
 .media-preview {
   display: flex;
   justify-content: center;
@@ -111,7 +103,6 @@ header h1 {
   margin-bottom: 12px;
   min-height: 110px;
 }
-
 .media-preview img,
 .media-preview video,
 .media-preview audio {
@@ -121,12 +112,10 @@ header h1 {
   background: #fff;
   box-shadow: 0 1px 3px rgba(43,65,98,0.09);
 }
-
 .media-preview audio {
   width: 100%;
   outline: none;
 }
-
 .link-actions {
   display: flex;
   gap: 7px;
@@ -158,7 +147,6 @@ header h1 {
 #copyBtn:hover {
   background: #09714c;
 }
-
 #notif {
   position: fixed;
   bottom: 22px;
@@ -174,12 +162,10 @@ header h1 {
   transition: opacity .26s;
   z-index: 100;
 }
-
 #notif.show {
   opacity: 1;
   pointer-events: auto;
 }
-
 @media (max-width: 500px) {
   .container {
     max-width: 98vw;
@@ -190,6 +176,10 @@ header h1 {
   }
 }
   </style>
+  <!-- Add the browser-image-compression CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.min.js"></script>
+  <!-- Add the ffmpeg.wasm CDN for audio compression -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -216,7 +206,7 @@ header h1 {
     <div id="notif"></div>
   </div>
   <script>
-      const fileInput = document.getElementById("fileInput");
+const fileInput = document.getElementById("fileInput");
 const videoBtn = document.getElementById("videoBtn");
 const imageBtn = document.getElementById("imageBtn");
 const audioBtn = document.getElementById("audioBtn");
@@ -236,7 +226,7 @@ function showNotif(msg, color) {
   notif.textContent = msg;
   notif.style.background = color || 'var(--accent)';
   notif.classList.add('show');
-  setTimeout(() => notif.classList.remove('show'), 1700);
+  setTimeout(() => notif.classList.remove('show'), 1900);
 }
 
 // File type selection
@@ -313,9 +303,11 @@ async function doUpload(file, type) {
   let url = '';
   try {
     if (type === "image") {
-      url = await uploadImageToImgur(file);
-    } else if (type === "video" || type === "audio") {
-      url = await uploadToCatbox(file, type);
+      url = await uploadImageWorkflow(file);
+    } else if (type === "audio") {
+      url = await uploadAudioWorkflow(file);
+    } else if (type === "video") {
+      url = await uploadToCatbox(file, type); // fallback for video
     }
     if (!url) throw new Error("Bai samu link ba");
     previewType.textContent = capitalize(type) + " Uploaded!";
@@ -328,51 +320,68 @@ async function doUpload(file, type) {
   }
 }
 
-async function uploadImageToImgur(file) {
-  // Rename image to .png if not supported
-  const validTypes = ["image/jpeg", "image/png", "image/gif", "image/tiff", "image/bmp", "image/webp"];
-  let imageFile = file;
-  if (!validTypes.includes(file.type)) {
-    // Convert to .png by drawing on canvas
-    const blob = await fileToPngBlob(file);
-    imageFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".png", {type: "image/png"});
-  }
+// ========== IMAGE UPLOAD SECTION (IMGUR & POSTIMAGES with browser-image-compression) ==========
+function renameImageFile(file) {
+  const random4 = Math.random().toString(36).substring(2, 6);
+  return new File([file], `${random4}_${Date.now()}.png`, { type: 'image/png' });
+}
+async function compressImage(file) {
+  const options = { maxSizeMB: 0.7, maxWidthOrHeight: 1024, useWebWorker: true };
+  const compressed = await window.imageCompression(file, options);
+  return renameImageFile(compressed);
+}
+async function uploadToImgur(file) {
   const formData = new FormData();
-  formData.append("image", imageFile);
-  const response = await fetch("https://api.imgur.com/3/image", {
-    method: "POST",
-    headers: {
-      Authorization: "Client-ID 5acf7eff9c91660"
-    },
-    body: formData
+  formData.append('image', file);
+  const response = await fetch('https://api.imgur.com/3/image', {
+    method: 'POST',
+    headers: { Authorization: 'Client-ID 5acf7eff9c91660' }, // replace with your client id if needed
+    body: formData,
   });
   const data = await response.json();
-  if (data.success) return data.data.link;
-  throw new Error(data.data.error || "Imgur error");
+  if (data.success && data.data && data.data.link) return data.data.link;
+  throw new Error('Imgur upload failed');
 }
-
-async function fileToPngBlob(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext("2d").drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-          resolve(blob);
-        }, "image/png");
-      };
-      img.onerror = reject;
-      img.src = ev.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+async function uploadToPostImages(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_session', '');
+  const response = await fetch('https://api.postimages.org/1/upload', {
+    method: 'POST',
+    body: formData,
   });
+  const data = await response.json();
+  if (data.url) return data.url;
+  throw new Error('PostImages upload failed');
+}
+async function uploadImageWorkflow(file) {
+  const compressed = await compressImage(file);
+  try {
+    return await uploadToImgur(compressed);
+  } catch (e) {
+    try {
+      return await uploadToPostImages(compressed);
+    } catch (err) {
+      throw new Error('All image uploads failed');
+    }
+  }
 }
 
+// ========== AUDIO UPLOAD SECTION (FFMPEG.WASM, CATBOX, ANONFILES) ==========
+let ffmpeg = null;
+async function compressAudio(file) {
+  if (!ffmpeg) {
+    ffmpeg = window.FFmpeg.createFFmpeg({ log: false });
+    await ffmpeg.load();
+  }
+  const data = await file.arrayBuffer();
+  ffmpeg.FS('writeFile', 'input', new Uint8Array(data));
+  await ffmpeg.run('-i', 'input', '-ac', '1', '-b:a', '64k', 'output.mp3');
+  const out = ffmpeg.FS('readFile', 'output.mp3');
+  const blob = new Blob([out.buffer], { type: 'audio/mp3' });
+  const random4 = Math.random().toString(36).substring(2, 6);
+  return new File([blob], `${random4}_${Date.now()}.mp3`, { type: 'audio/mp3' });
+}
 async function uploadToCatbox(file, type) {
   const formData = new FormData();
   formData.append("reqtype", "fileupload");
@@ -384,8 +393,7 @@ async function uploadToCatbox(file, type) {
   } else if (type === "video") {
     if (!["mp4","webm","mov","avi"].includes(ext)) ext = "mp4";
     formData.append("fileToUpload", new File([file], base + "." + ext, {type: file.type}));
-  }
-  else {
+  } else {
     formData.append("fileToUpload", file);
   }
   const response = await fetch("https://catbox.moe/user/api.php", {
@@ -395,6 +403,39 @@ async function uploadToCatbox(file, type) {
   const url = await response.text();
   if (/^https?:\/\//.test(url)) return url.trim();
   throw new Error("Catbox: " + url);
+}
+async function uploadToAnonfiles(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch('https://api.anonfiles.com/upload', {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await response.json();
+  if (data.status && data.data && data.data.file && data.data.file.url && data.data.file.url.full) {
+    return data.data.file.url.full;
+  }
+  throw new Error('Anonfiles upload failed');
+}
+async function uploadAudioWorkflow(file) {
+  // Compress audio to mp3, mono, 64kbps, rename
+  let compressed;
+  try {
+    compressed = await compressAudio(file);
+  } catch (err) {
+    showNotif("Audio compressing error: " + err.message, "var(--danger)");
+    throw new Error("Audio compress failed");
+  }
+  // Try catbox, fallback to anonfiles
+  try {
+    return await uploadToCatbox(compressed, "audio");
+  } catch (e) {
+    try {
+      return await uploadToAnonfiles(compressed);
+    } catch (err) {
+      throw new Error('All audio uploads failed');
+    }
+  }
 }
 
 // Copy to clipboard
