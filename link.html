@@ -462,6 +462,7 @@
       return new File([file], `${base}.${ext}`, { type: file.type });
     }
 
+    // --- FIXED UPLOAD FUNCTION WITH ROBUST ERROR HANDLING ---
     async function doUpload(file, type) {
       previewType.textContent = {
         image: "Uploading Image...",
@@ -480,7 +481,8 @@
           }
           const formData = new FormData();
           formData.append('file', fileToSend);
-          let response, data;
+
+          let response, data, text;
           try {
             response = await fetch("https://worker33.lawaliharuna943.workers.dev/getLink", {
               method: "POST",
@@ -493,15 +495,40 @@
               detail: fetchErr.stack || fetchErr
             };
           }
-          try {
-            data = await response.json();
-          } catch (jsonErr) {
+
+          // 1) Duba Content-Type
+          const contentType = response.headers.get("Content-Type") || "";
+          if (contentType.includes("application/json")) {
+            try {
+              data = await response.json();
+            } catch (jsonErr) {
+              throw {
+                stage: 'Cloudflare Worker JSON parse',
+                message: jsonErr.message,
+                detail: jsonErr.stack || jsonErr
+              };
+            }
+          } else {
+            // Ba JSON response ba (kamar error na "Method Not Allowed")
+            text = await response.text();
+            // Zai iya zama sako irin "Method Not Allowed"
             throw {
-              stage: 'Cloudflare Worker JSON parse',
-              message: jsonErr.message,
-              detail: jsonErr.stack || jsonErr
+              stage: 'Cloudflare Worker response',
+              message: text,
+              detail: `Status: ${response.status} ${response.statusText}\nContent-Type: ${contentType}`
             };
           }
+
+          // 2) Idan status ba 2xx ba, jefa kuskure
+          if (!response.ok) {
+            throw {
+              stage: 'Cloudflare Worker response',
+              message: (data && data.error) ? data.error : "Unknown server error",
+              detail: JSON.stringify(data, null, 2)
+            };
+          }
+
+          // 3) Success
           if (data && data.success && data.link) {
             url = data.link;
           } else {
