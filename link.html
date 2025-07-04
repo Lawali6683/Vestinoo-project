@@ -2,221 +2,222 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Multi Uploader | Haruna Lawali</title>
+  <title>Multi Uploader | Haruna Lawali (JSON Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <style>
-      :root {
-        --main: #2b4162;
-        --accent: #0b6e4f;
-        --bg: #f1f6f9;
-        --white: #fff;
-        --gray: #eaeaea;
-        --danger: #f87171;
-        --shadow: 0 8px 24px rgba(43,65,98,0.08);
-      }
-      body {
-        margin: 0;
-        font-family: 'Segoe UI', 'Arial', sans-serif;
-        background: var(--bg);
-        min-height: 100vh;
-      }
+    /* ... (same CSS as before, copy all your style section here) ... */
+    :root {
+      --main: #2b4162;
+      --accent: #0b6e4f;
+      --bg: #f1f6f9;
+      --white: #fff;
+      --gray: #eaeaea;
+      --danger: #f87171;
+      --shadow: 0 8px 24px rgba(43,65,98,0.08);
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 430px;
+      margin: 40px auto;
+      background: var(--white);
+      box-shadow: var(--shadow);
+      border-radius: 18px;
+      padding: 24px 20px 30px 20px;
+      position: relative;
+    }
+    header h1 {
+      font-size: 1.38rem;
+      margin: 0 0 16px 0;
+      color: var(--main);
+      text-align: center;
+      font-weight: 700;
+    }
+    .upload-buttons {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      justify-content: center;
+    }
+    .upload-buttons button {
+      flex: 1;
+      background: var(--accent);
+      color: var(--white);
+      border: none;
+      font-size: 1rem;
+      padding: 12px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background .18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+    .upload-buttons button:hover {
+      background: #09714c;
+    }
+    #previewSection {
+      background: var(--gray);
+      margin-top: 12px;
+      padding: 15px 15px 10px 15px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(43,65,98,0.08);
+    }
+    #previewSection.hidden {
+      display: none;
+    }
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    #previewType {
+      font-weight: 600;
+      color: var(--main);
+      font-size: 1.1rem;
+      letter-spacing: .1px;
+    }
+    #removeBtn {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      color: var(--danger);
+      cursor: pointer;
+      transition: color .18s;
+    }
+    #removeBtn:hover {
+      color: #dc2626;
+    }
+    .media-preview {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 12px;
+      min-height: 110px;
+    }
+    .media-preview img,
+    .media-preview video,
+    .media-preview audio {
+      max-width: 98%;
+      max-height: 180px;
+      border-radius: 7px;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(43,65,98,0.09);
+    }
+    .media-preview audio {
+      width: 100%;
+      outline: none;
+    }
+    .audio-record {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .audio-record .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+    .audio-record button {
+      background: var(--accent);
+      color: var(--white);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background .18s;
+    }
+    .audio-record button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .audio-record button:hover:not(:disabled) {
+      background: #09714c;
+    }
+    .audio-record .timer {
+      font-size: 1.08rem;
+      color: var(--main);
+      font-weight: bold;
+    }
+    .link-actions {
+      display: flex;
+      gap: 7px;
+      margin-top: 3px;
+    }
+    .link-actions.hidden {
+      display: none;
+    }
+    #fileLink {
+      flex: 1;
+      font-size: .98rem;
+      padding: 6px 8px;
+      border: 1px solid #d6d7e0;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #324;
+      overflow-x: auto;
+    }
+    #copyBtn {
+      background: var(--accent);
+      color: var(--white);
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 1.15rem;
+      cursor: pointer;
+      transition: background .18s;
+    }
+    #copyBtn:hover {
+      background: #09714c;
+    }
+    #notif {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: var(--white);
+      padding: 10px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .26s;
+      z-index: 100;
+    }
+    #notif.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #errorDetail {
+      color: var(--danger);
+      font-size: .97rem;
+      margin: 7px 0 0 0;
+      text-align: center;
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    @media (max-width: 500px) {
       .container {
-        max-width: 430px;
-        margin: 40px auto;
-        background: var(--white);
-        box-shadow: var(--shadow);
-        border-radius: 18px;
-        padding: 24px 20px 30px 20px;
-        position: relative;
+        max-width: 98vw;
+        padding: 13px 3vw 20px 3vw;
       }
-      header h1 {
-        font-size: 1.38rem;
-        margin: 0 0 16px 0;
-        color: var(--main);
-        text-align: center;
-        font-weight: 700;
+      .media-preview img, .media-preview video, .media-preview audio {
+        max-width: 96vw;
       }
-      .upload-buttons {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 18px;
-        justify-content: center;
-      }
-      .upload-buttons button {
-        flex: 1;
-        background: var(--accent);
-        color: var(--white);
-        border: none;
-        font-size: 1rem;
-        padding: 12px 0;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background .18s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-      }
-      .upload-buttons button:hover {
-        background: #09714c;
-      }
-      #previewSection {
-        background: var(--gray);
-        margin-top: 12px;
-        padding: 15px 15px 10px 15px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(43,65,98,0.08);
-      }
-      #previewSection.hidden {
-        display: none;
-      }
-      .preview-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-      }
-      #previewType {
-        font-weight: 600;
-        color: var(--main);
-        font-size: 1.1rem;
-        letter-spacing: .1px;
-      }
-      #removeBtn {
-        background: none;
-        border: none;
-        font-size: 1.25rem;
-        color: var(--danger);
-        cursor: pointer;
-        transition: color .18s;
-      }
-      #removeBtn:hover {
-        color: #dc2626;
-      }
-      .media-preview {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-bottom: 12px;
-        min-height: 110px;
-      }
-      .media-preview img,
-      .media-preview video,
-      .media-preview audio {
-        max-width: 98%;
-        max-height: 180px;
-        border-radius: 7px;
-        background: #fff;
-        box-shadow: 0 1px 3px rgba(43,65,98,0.09);
-      }
-      .media-preview audio {
-        width: 100%;
-        outline: none;
-      }
-      .audio-record {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-      .audio-record .controls {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 7px;
-      }
-      .audio-record button {
-        background: var(--accent);
-        color: var(--white);
-        border: none;
-        border-radius: 6px;
-        padding: 6px 14px;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: background .18s;
-      }
-      .audio-record button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      .audio-record button:hover:not(:disabled) {
-        background: #09714c;
-      }
-      .audio-record .timer {
-        font-size: 1.08rem;
-        color: var(--main);
-        font-weight: bold;
-      }
-      .link-actions {
-        display: flex;
-        gap: 7px;
-        margin-top: 3px;
-      }
-      .link-actions.hidden {
-        display: none;
-      }
-      #fileLink {
-        flex: 1;
-        font-size: .98rem;
-        padding: 6px 8px;
-        border: 1px solid #d6d7e0;
-        border-radius: 6px;
-        background: #f8fafc;
-        color: #324;
-        overflow-x: auto;
-      }
-      #copyBtn {
-        background: var(--accent);
-        color: var(--white);
-        border: none;
-        border-radius: 6px;
-        padding: 5px 10px;
-        font-size: 1.15rem;
-        cursor: pointer;
-        transition: background .18s;
-      }
-      #copyBtn:hover {
-        background: #09714c;
-      }
-      #notif {
-        position: fixed;
-        bottom: 22px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--accent);
-        color: var(--white);
-        padding: 10px 28px;
-        border-radius: 8px;
-        font-size: 1rem;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity .26s;
-        z-index: 100;
-      }
-      #notif.show {
-        opacity: 1;
-        pointer-events: auto;
-      }
-      #errorDetail {
-        color: var(--danger);
-        font-size: .97rem;
-        margin: 7px 0 0 0;
-        text-align: center;
-        display: none;
-        white-space: pre-wrap;
-        word-break: break-all;
-      }
-      @media (max-width: 500px) {
-        .container {
-          max-width: 98vw;
-          padding: 13px 3vw 20px 3vw;
-        }
-        .media-preview img, .media-preview video, .media-preview audio {
-          max-width: 96vw;
-        }
-      }
+    }
   </style>
 </head>
 <body>
@@ -230,7 +231,6 @@
       <button id="audioBtn"><i class="fa-solid fa-music"></i> Upload Audio</button>
     </div>
     <input type="file" id="fileInput" hidden>
-    <!-- Audio recording UI, show only if needed -->
     <section class="audio-record" id="audioRecordSection" style="display:none;">
       <div class="controls">
         <button id="startRecBtn"><i class="fa-solid fa-microphone"></i> Start</button>
@@ -255,7 +255,7 @@
     <div id="notif"></div>
   </div>
   <script>
-    // ========== DOM ELEMENTS ==========
+    // --- DOM ELEMENTS ---
     const fileInput = document.getElementById("fileInput");
     const videoBtn = document.getElementById("videoBtn");
     const imageBtn = document.getElementById("imageBtn");
@@ -385,7 +385,6 @@
 
     // ========== IMAGE UPLOAD (IMGUR ONLY) ==========
     async function compressImage(file) {
-      // Basic browser compression (no external lib for size)
       return new Promise((resolve, reject) => {
         const img = new Image();
         const reader = new FileReader();
@@ -452,7 +451,7 @@
       }
     }
 
-    // ========== AUDIO / VIDEO UPLOAD (API ONLY) ==========
+    // ========== AUDIO / VIDEO UPLOAD (API ONLY, JSON) ==========
     async function prepareAudioFile(file) {
       let ext = file.name.split('.').pop().toLowerCase();
       let base = file.name.replace(/\.[^/.]+$/, '');
@@ -462,7 +461,17 @@
       return new File([file], `${base}.${ext}`, { type: file.type });
     }
 
-    // --- FIXED UPLOAD FUNCTION WITH ROBUST ERROR HANDLING ---
+    // Helper to convert a File/Blob to base64 (for JSON body)
+    async function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Main upload function: sends type and base64 via JSON
     async function doUpload(file, type) {
       previewType.textContent = {
         image: "Uploading Image...",
@@ -473,20 +482,28 @@
       let url = '';
       try {
         if (type === "image") {
-          url = await uploadImageWorkflow(file);
+          url = await uploadImageWorkflow(file); // Still direct to imgur
         } else if (type === "video" || type === "audio") {
           let fileToSend = file;
           if (type === "audio") {
             fileToSend = await prepareAudioFile(file);
           }
-          const formData = new FormData();
-          formData.append('file', fileToSend);
-
-          let response, data, text;
+          const base64 = await fileToBase64(fileToSend);
+          // random unique id for the upload
+          const id = 'id_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+          const jsonBody = {
+            id,
+            type,
+            filename: fileToSend.name,
+            mimetype: fileToSend.type,
+            data: base64
+          };
+          let response, data;
           try {
             response = await fetch("https://worker33.lawaliharuna943.workers.dev/getLink", {
               method: "POST",
-              body: formData,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(jsonBody),
             });
           } catch (fetchErr) {
             throw {
@@ -495,40 +512,15 @@
               detail: fetchErr.stack || fetchErr
             };
           }
-
-          // 1) Duba Content-Type
-          const contentType = response.headers.get("Content-Type") || "";
-          if (contentType.includes("application/json")) {
-            try {
-              data = await response.json();
-            } catch (jsonErr) {
-              throw {
-                stage: 'Cloudflare Worker JSON parse',
-                message: jsonErr.message,
-                detail: jsonErr.stack || jsonErr
-              };
-            }
-          } else {
-            // Ba JSON response ba (kamar error na "Method Not Allowed")
-            text = await response.text();
-            // Zai iya zama sako irin "Method Not Allowed"
+          try {
+            data = await response.json();
+          } catch (jsonErr) {
             throw {
-              stage: 'Cloudflare Worker response',
-              message: text,
-              detail: `Status: ${response.status} ${response.statusText}\nContent-Type: ${contentType}`
+              stage: 'Cloudflare Worker JSON parse',
+              message: jsonErr.message,
+              detail: jsonErr.stack || jsonErr
             };
           }
-
-          // 2) Idan status ba 2xx ba, jefa kuskure
-          if (!response.ok) {
-            throw {
-              stage: 'Cloudflare Worker response',
-              message: (data && data.error) ? data.error : "Unknown server error",
-              detail: JSON.stringify(data, null, 2)
-            };
-          }
-
-          // 3) Success
           if (data && data.success && data.link) {
             url = data.link;
           } else {
