@@ -199,6 +199,15 @@
         opacity: 1;
         pointer-events: auto;
       }
+      #errorDetail {
+        color: var(--danger);
+        font-size: .97rem;
+        margin: 7px 0 0 0;
+        text-align: center;
+        display: none;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
       @media (max-width: 500px) {
         .container {
           max-width: 98vw;
@@ -242,6 +251,7 @@
         <button id="copyBtn" title="Copy Link"><i class="fa-regular fa-copy"></i></button>
       </div>
     </section>
+    <div id="errorDetail"></div>
     <div id="notif"></div>
   </div>
   <script>
@@ -258,6 +268,7 @@
     const fileLink = document.getElementById("fileLink");
     const copyBtn = document.getElementById("copyBtn");
     const notif = document.getElementById("notif");
+    const errorDetail = document.getElementById("errorDetail");
 
     // Audio record UI
     const audioRecordSection = document.getElementById("audioRecordSection");
@@ -282,20 +293,32 @@
       setTimeout(() => notif.classList.remove('show'), 1700);
     }
 
+    function showErrorDetail(errText) {
+      errorDetail.style.display = "block";
+      errorDetail.textContent = errText || "";
+    }
+    function hideErrorDetail() {
+      errorDetail.style.display = "none";
+      errorDetail.textContent = "";
+    }
+
     // ========== UPLOAD BUTTONS ==========
     videoBtn.onclick = () => {
       audioRecordSection.style.display = 'none';
       openFilePicker("video/*", "video");
+      hideErrorDetail();
     };
     imageBtn.onclick = () => {
       audioRecordSection.style.display = 'none';
       openFilePicker("image/*", "image");
+      hideErrorDetail();
     };
     audioBtn.onclick = () => {
       audioRecordSection.style.display = '';
       previewSection.classList.add("hidden");
       linkActions.classList.add("hidden");
       openFilePicker("audio/*,audio/webm", "audio");
+      hideErrorDetail();
     };
 
     function openFilePicker(accept, type) {
@@ -310,6 +333,7 @@
     fileInput.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      hideErrorDetail();
       if (currentType === "video" && file.size > 210 * 1024 * 1024) {
         showNotif("Video ya fi 200MB. Zabi wata video", "var(--danger)");
         return;
@@ -356,6 +380,7 @@
       mediaPreview.innerHTML = "";
       lastFile = null;
       linkActions.classList.add("hidden");
+      hideErrorDetail();
     };
 
     // ========== IMAGE UPLOAD (IMGUR ONLY) ==========
@@ -391,19 +416,40 @@
     async function uploadToImgur(file) {
       const formData = new FormData();
       formData.append('image', file);
-      const response = await fetch('https://api.imgur.com/3/image', {
-        method: 'POST',
-        headers: { Authorization: 'Client-ID 5acf7eff9c91660' },
-        body: formData,
-      });
-      const data = await response.json();
-      if (data.success && data.data && data.data.link) return data.data.link;
-      throw new Error('Imgur upload failed');
+      let response, data;
+      try {
+        response = await fetch('https://api.imgur.com/3/image', {
+          method: 'POST',
+          headers: { Authorization: 'Client-ID 5acf7eff9c91660' },
+          body: formData,
+        });
+        data = await response.json();
+      } catch (fetchErr) {
+        throw {
+          stage: 'Imgur fetch',
+          message: fetchErr.message,
+          detail: fetchErr.stack || fetchErr
+        };
+      }
+      if (data && data.success && data.data && data.data.link) return data.data.link;
+      throw {
+        stage: 'Imgur response',
+        message: (data && data.data && data.data.error) ? data.data.error : 'Imgur upload failed',
+        detail: JSON.stringify(data, null, 2)
+      };
     }
 
     async function uploadImageWorkflow(file) {
-      const compressed = await compressImage(file);
-      return await uploadToImgur(compressed);
+      try {
+        const compressed = await compressImage(file);
+        return await uploadToImgur(compressed);
+      } catch (err) {
+        throw {
+          stage: (err && err.stage) || 'Image Compression/Upload',
+          message: err && err.message ? err.message : (err + ""),
+          detail: err && err.detail ? err.detail : (typeof err === "object" ? JSON.stringify(err, null, 2) : err)
+        };
+      }
     }
 
     // ========== AUDIO / VIDEO UPLOAD (API ONLY) ==========
@@ -434,25 +480,64 @@
           }
           const formData = new FormData();
           formData.append('file', fileToSend);
-          const response = await fetch("https://worker33.workers.dev/getLink", {
-            method: "POST",
-            body: formData,
-          });
-          const data = await response.json();
-          if (data.success && data.link) {
+          let response, data;
+          try {
+            response = await fetch("https://worker33.workers.dev/getLink", {
+              method: "POST",
+              body: formData,
+            });
+          } catch (fetchErr) {
+            throw {
+              stage: 'Cloudflare Worker fetch',
+              message: fetchErr.message,
+              detail: fetchErr.stack || fetchErr
+            };
+          }
+          try {
+            data = await response.json();
+          } catch (jsonErr) {
+            throw {
+              stage: 'Cloudflare Worker JSON parse',
+              message: jsonErr.message,
+              detail: jsonErr.stack || jsonErr
+            };
+          }
+          if (data && data.success && data.link) {
             url = data.link;
           } else {
-            throw new Error("Bai yi uploading ba");
+            throw {
+              stage: 'Cloudflare Worker response',
+              message: (data && data.error) ? data.error : "Bai yi uploading ba",
+              detail: JSON.stringify(data, null, 2)
+            };
           }
         }
-        if (!url) throw new Error("Bai samu link ba");
+        if (!url) throw {
+          stage: 'No Link',
+          message: "Bai samu link ba",
+          detail: ""
+        };
         previewType.textContent = capitalize(type) + " Uploaded!";
         fileLink.value = url;
         linkActions.classList.remove("hidden");
         showNotif(capitalize(type) + " uploaded successfully!");
+        hideErrorDetail();
       } catch (err) {
         previewType.textContent = "Upload error!";
-        showNotif("Error: " + (err.message || err), "var(--danger)");
+        let errMsg = "Error: ";
+        if (err && typeof err === "object") {
+          errMsg += (err.stage ? `[${err.stage}] ` : "") + (err.message || "");
+        } else {
+          errMsg += err;
+        }
+        showNotif(errMsg, "var(--danger)");
+        showErrorDetail(
+          (err && typeof err === "object")
+            ? ((err.stage ? "Mataki/Stage: " + err.stage + "\n" : "") +
+                (err.message ? "Sako/Message: " + err.message + "\n" : "") +
+                (err.detail ? "Detail:\n" + err.detail : ""))
+            : (errMsg)
+        );
       }
     }
 
@@ -486,6 +571,7 @@
         stopRecBtn.disabled = false;
       } catch (err) {
         showNotif("Recording error: " + err.message, "var(--danger)");
+        showErrorDetail("Mataki/Stage: Microphone Access\nSako/Message: " + (err.message || err));
       }
     };
     stopRecBtn.onclick = () => {
