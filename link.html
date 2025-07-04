@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <style>
-    /* ... (same CSS as before, copy all your style section here) ... */
     :root {
       --main: #2b4162;
       --accent: #0b6e4f;
@@ -498,18 +497,37 @@
             mimetype: fileToSend.type,
             data: base64
           };
+
+          // ---- EDITED: Use try/catch for fetch and check for network errors -----
           let response, data;
           try {
             response = await fetch("https://worker33.lawaliharuna943.workers.dev/getLink", {
               method: "POST",
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(jsonBody),
+              // Mode and credentials left default for Cloudflare Worker, no-cors NOT needed!
             });
           } catch (fetchErr) {
             throw {
               stage: 'Cloudflare Worker fetch',
               message: fetchErr.message,
               detail: fetchErr.stack || fetchErr
+            };
+          }
+          if (!response) {
+            throw {
+              stage: 'Cloudflare Worker fetch',
+              message: "No response from worker.",
+              detail: ""
+            };
+          }
+          if (!response.ok) {
+            let errText = '';
+            try { errText = await response.text(); } catch {}
+            throw {
+              stage: 'Cloudflare Worker HTTP',
+              message: `HTTP ${response.status}: ${response.statusText}`,
+              detail: errText
             };
           }
           try {
