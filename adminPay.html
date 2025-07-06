@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Vestinoo | Payment Approval</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -13,7 +14,6 @@
       margin: 0;
       padding: 0;
     }
-
     header {
       background-color: #141414;
       padding: 1rem 2rem;
@@ -22,16 +22,13 @@
       font-weight: bold;
       border-bottom: 2px solid #1e1e1e;
     }
-
     .container, .login-container {
       padding: 2rem;
     }
-
     .welcome {
       padding: 1rem 2rem;
       font-size: 1.2rem;
     }
-
     .withdraw-box {
       background-color: #1b1b1b;
       padding: 1rem;
@@ -40,7 +37,6 @@
       border: 1px solid #333;
       position: relative;
     }
-
     .withdraw-box .status-badge {
       position: absolute;
       top: -10px;
@@ -58,7 +54,6 @@
     .withdraw-box .status-badge.green {
       background-color: #43a047;
     }
-
     .withdraw-info {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -66,7 +61,6 @@
       margin-bottom: 10px;
       font-size: 10px;
     }
-
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -74,8 +68,7 @@
       gap: 7px;
       margin-bottom: 8px;
     }
-
-  .btn {
+    .btn {
       padding: 8px 10px;
       border: none;
       border-radius: 8px;
@@ -84,21 +77,17 @@
       transition: 0.3s ease;
       font-size: 10px;
     }
-
-       .btn.approve { background-color: #2e7d32; color: white; }
+    .btn.approve { background-color: #2e7d32; color: white; }
     .btn.cancel { background-color: #c62828; color: white; }
     .btn.copy { background-color: #1976d2; color: white; }
     .btn.copy-wallet { background-color: #455a64; color: white; }
     .btn:hover { opacity: 0.9; }
-
-
     .no-requests {
       text-align: center;
       margin-top: 50px;
       font-size: 1.0rem;
       color: #888;
     }
-
     .login-container {
       max-width: 400px;
       margin: 100px auto;
@@ -107,12 +96,10 @@
       border-radius: 10px;
       border: 1px solid #333;
     }
-
     .login-container h2 {
       margin-bottom: 1rem;
       text-align: center;
     }
-
     .login-container input {
       width: 100%;
       padding: 10px;
@@ -122,7 +109,6 @@
       background-color: #121212;
       color: white;
     }
-
     .login-container button {
       width: 100%;
       padding: 10px;
@@ -134,7 +120,6 @@
       color: white;
       cursor: pointer;
     }
-
     .alert {
       background: #263238;
       color: #fff;
@@ -151,7 +136,6 @@
       min-width: 180px;
       text-align: center;
     }
-
     @media (max-width: 768px) {
       .withdraw-info {
         grid-template-columns: 1fr;
@@ -167,9 +151,7 @@
   </style>
 </head>
 <body>
-
   <header>Vestinoo Payment Approval Panel</header>
-
   <!-- Login Form -->
   <div class="login-container" id="loginForm">
     <h2>Admin Login</h2>
@@ -177,17 +159,14 @@
     <input type="password" id="password" placeholder="Password" required />
     <button id="loginBtn">Login</button>
   </div>
-
   <!-- Dashboard Content -->
   <div class="welcome" id="welcomeText" style="display: none;"></div>
   <div class="container" id="withdrawContainer" style="display: none;">
     <div class="no-requests" id="noRequests">No withdrawal requests at the moment.</div>
   </div>
-
   <div class="alert" id="alertBox"></div>
-
 <script type="module">
-
+// ------ FIREBASE AND EMAILJS CONFIG START ------
 import { app } from './firebase.js';
 import {
   getAuth,
@@ -201,6 +180,15 @@ import {
   update,
   remove
 } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+
+emailjs.init("Q9PGak13xt3YWstRl"); // Public Key
+
+const EMAILJS_PRIVATE_KEY = "7N3vc4_G0q8lO1Az4Ku-3";
+const EMAILJS_TEMPLATE_ID = "template_jfcpgyq";
+const EMAILJS_SERVICE_ID = "default_service"; // Most accounts use default_service, change if yours is different
+
+// ------ FIREBASE AND EMAILJS CONFIG END ------
 
 const auth = getAuth(app);
 const db = getDatabase(app);
@@ -217,40 +205,41 @@ const alertBox = document.getElementById("alertBox");
 
 let currentAgent = null;
 
-// --- EMAIL UTILS ---
-async function sendEmail(to, subject, htmlContent) {
+// -------- EMAIL UTILS --------
+async function sendEmailWithEmailJS({ to, subject, htmlContent, emailId }) {
   try {
-    const res = await fetch("https://bonus-gamma.vercel.app/api/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, subject, htmlContent })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("❌ Email API error:", data);
-      throw new Error(data.error || "Failed to send email");
+    const params = {
+      to_email: to,
+      subject: subject,
+      message_html: htmlContent,
+      transaction_id: emailId
+    };
+    const result = await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      EMAILJS_TEMPLATE_ID,
+      params,
+      EMAILJS_PRIVATE_KEY
+    );
+    if (result.status !== 200) {
+      throw new Error(`[EmailJS Error] Status=${result.status}, Text=${result.text}`);
     }
-    console.log("✅ Email sent successfully:", data.message);
+    console.log("✅ Email sent via EmailJS:", result);
   } catch (error) {
-    console.error("❌ sendEmail() failed:", error);
+    showAlert("Email Not Sent: " + (error?.text || error?.message || error));
+    throw new Error("EmailJS failed: " + (error?.text || error?.message || error));
   }
 }
-
 
 function generateEmailId(prefix = "VNOO") {
   return `${prefix}-${Math.floor(100000 + Math.random() * 900000)}-${Date.now()}`;
 }
-
 function formatDateLocal(epochTime) {
   try {
     if (!epochTime) return "";
     const date = new Date(epochTime);
     return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
-
 function paymentSuccessTemplate({ fullName, amount, walletAddress, withdrawalTime, emailId }) {
   return `
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(33,33,33,0.15);padding:36px 26px 30px;font-family:'Segoe UI',Arial,sans-serif;">
@@ -285,7 +274,6 @@ function paymentSuccessTemplate({ fullName, amount, walletAddress, withdrawalTim
   </div>
   `;
 }
-
 function withdrawalFailedTemplate({ fullName, amount, withdrawalTime, emailId }) {
   return `
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(33,33,33,0.14);padding:36px 26px 30px;font-family:'Segoe UI',Arial,sans-serif;">
@@ -319,9 +307,7 @@ function withdrawalFailedTemplate({ fullName, amount, withdrawalTime, emailId })
   </div>
   `;
 }
-
-// --- END EMAIL UTILS ---
-
+// -------- END EMAIL UTILS --------
 function showAlert(msg) {
   alertBox.textContent = msg;
   alertBox.style.display = "block";
@@ -329,7 +315,6 @@ function showAlert(msg) {
     alertBox.style.display = "none";
   }, 1800);
 }
-
 loginBtn.onclick = async () => {
   const email = emailInput.value;
   const password = passwordInput.value;
@@ -339,7 +324,6 @@ loginBtn.onclick = async () => {
     showAlert("Login failed: " + error.message);
   }
 };
-
 let adminTimeOffset = 0;
 function calcAdminTimeOffset() {
   return Date.now() - new Date().getTime();
@@ -351,19 +335,16 @@ function hoursSince(timestamp) {
   const now = getAdminTime();
   return (now - timestamp) / (1000 * 60 * 60);
 }
-
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     loginForm.style.display = "none";
     withdrawContainer.style.display = "block";
     welcomeText.style.display = "block";
-
     const agentUid = user.uid;
     const snap = await get(ref(db, `users/${agentUid}`));
     const agentData = snap.val();
     currentAgent = agentData?.fullName || "Agent";
     welcomeText.innerText = `Welcome ${currentAgent}, Agent`;
-
     adminTimeOffset = calcAdminTimeOffset();
     await loadAllWithdrawalRequests();
   } else {
@@ -372,43 +353,33 @@ onAuthStateChanged(auth, async (user) => {
     welcomeText.style.display = "none";
   }
 });
-
 async function loadAllWithdrawalRequests() {
   withdrawContainer.querySelectorAll(".withdraw-box").forEach(e => e.remove());
   noRequests.style.display = "block";
-
   const usersRef = ref(db, "users");
   const snapshot = await get(usersRef);
-
   if (!snapshot.exists()) return;
-
   let count = 1;
   let found = false;
-
   snapshot.forEach((userSnap) => {
     const userId = userSnap.key;
     const userData = userSnap.val();
     const withdrawals = userData?.approvedWithdrawals;
-
     if (withdrawals) {
       Object.entries(withdrawals).forEach(([withdrawalId, withdrawal]) => {
         found = true;
         const withdrawTime = withdrawal.withdrawalTime || 0;
         const hoursDiff = hoursSince(withdrawTime);
         const isExpired = hoursDiff >= 24;
-
         const box = document.createElement("div");
         box.className = "withdraw-box";
         box.setAttribute("data-user", userId);
-
         const badge = document.createElement('span');
         badge.className = `status-badge ${isExpired ? "green" : "red"}`;
         badge.textContent = isExpired ? "OK" : "24h+";
         box.appendChild(badge);
-
         const amountValue = parseFloat(withdrawal.amount || 0).toFixed(2);
         const walletValue = withdrawal.walletAddress || '';
-
         const infoHTML = `
           <div class="withdraw-info">
             <span><strong>#${count++}</strong> ${userData.fullName || ''} (${userId})</span>
@@ -440,7 +411,6 @@ async function loadAllWithdrawalRequests() {
         box.innerHTML += infoHTML;
         withdrawContainer.appendChild(box);
         noRequests.style.display = "none";
-
         box.querySelector(".btn.copy").onclick = (e) => {
           const val = e.currentTarget.getAttribute("data-copy");
           navigator.clipboard.writeText(val).then(() => {
@@ -453,27 +423,21 @@ async function loadAllWithdrawalRequests() {
             showAlert("Wallet address copied successfully");
           });
         };
-
         box.querySelector(".btn.cancel").onclick = () =>
           handleOK(userId, withdrawalId, box, userData, withdrawal);
-
         box.querySelector(".btn.approve").onclick = () =>
           handleApprove(userId, userData, withdrawal, withdrawalId, box);
       });
     }
   });
-
   if (!found) noRequests.style.display = "block";
 }
-
 // Approve: pay and move to successfullyPayment, send styled email
 async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
   try {
     if (!confirm(`${currentAgent}, are you sure you want to approve this payment?`)) return;
-
     const fee = parseFloat(withdrawal.amount) * 0.06;
     const totalDeduct = parseFloat((parseFloat(withdrawal.amount) + fee).toFixed(2));
-
     const updates = {};
     const balance = parseFloat(userData.userBalance || 0);
     updates[`users/${userId}/userBalance`] = parseFloat((balance - totalDeduct).toFixed(2));
@@ -487,16 +451,14 @@ async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
     updates[`users/${userId}/totallyWithdraw`] = parseFloat((oldTotal + parseFloat(withdrawal.amount)).toFixed(2));
     const oldCount = parseInt(userData.countingWithdraw || 0);
     updates[`users/${userId}/countingWithdraw`] = oldCount + 1;
-
     await update(ref(db), updates);
-
     // --- EMAIL: Payment Success ---
     const emailId = generateEmailId();
     try {
-      await sendEmail(
-        userData.email,
-        "Your Withdrawal Was Successful - Vestinoo",
-        paymentSuccessTemplate({
+      await sendEmailWithEmailJS({
+        to: userData.email,
+        subject: "Your Withdrawal Was Successful - Vestinoo",
+        htmlContent: paymentSuccessTemplate({
           fullName: userData.fullName || "Valued User",
           amount: withdrawal.amount,
           walletAddress: withdrawal.walletAddress,
@@ -504,11 +466,8 @@ async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
           emailId
         }),
         emailId
-      );
-    } catch (emailErr) {
-      // still continue
-    }
-
+      });
+    } catch (emailErr) {}
     showAlert("Payment successfully processed!");
     box.remove();
     checkEmpty();
@@ -516,31 +475,26 @@ async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
     showAlert("Unexpected error: " + err.message);
   }
 }
-
 // OK: Remove withdrawal only, user must request again, send styled email
 async function handleOK(userId, withdrawalId, box, userData, withdrawal) {
   try {
     if (!confirm(`${currentAgent}, are you sure you want to remove this withdrawal?`)) return;
     await remove(ref(db, `users/${userId}/approvedWithdrawals/${withdrawalId}`));
-
     // --- EMAIL: Withdraw Canceled ---
     const emailId = generateEmailId();
     try {
-      await sendEmail(
-        userData.email,
-        "Withdrawal Request Canceled - Vestinoo",
-        withdrawalFailedTemplate({
+      await sendEmailWithEmailJS({
+        to: userData.email,
+        subject: "Withdrawal Request Canceled - Vestinoo",
+        htmlContent: withdrawalFailedTemplate({
           fullName: userData.fullName || "Valued User",
           amount: withdrawal?.amount || 0,
           withdrawalTime: withdrawal?.withdrawalTime || Date.now(),
           emailId
         }),
         emailId
-      );
-    } catch (emailErr) {
-      // still continue
-    }
-
+      });
+    } catch (emailErr) {}
     showAlert("Withdrawal request removed. User must request again.");
     box.remove();
     checkEmpty();
@@ -548,14 +502,11 @@ async function handleOK(userId, withdrawalId, box, userData, withdrawal) {
     showAlert("Unexpected error: " + err.message);
   }
 }
-
 function checkEmpty() {
   if (withdrawContainer.querySelectorAll(".withdraw-box").length === 0) {
     noRequests.style.display = "block";
   }
 }
-
-
 </script>
 </body>
 </html>
