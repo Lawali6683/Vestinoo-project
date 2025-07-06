@@ -2,30 +2,26 @@
 <html lang="ha">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rikodi Audio & Chatbot Link</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎤 Rikodi & Tura Audio</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to right, #f0f2f5, #e0eafc);
-      margin: 0;
-      padding: 0;
+      background: linear-gradient(to right, #dfe9f3, #ffffff);
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
+      margin: 0;
     }
     .card {
-      background: white;
+      background: #fff;
       padding: 30px;
       border-radius: 15px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.1);
       text-align: center;
       width: 90%;
       max-width: 400px;
-    }
-    h2 {
-      color: #333;
     }
     button {
       background: #007bff;
@@ -40,7 +36,6 @@
     }
     button:disabled {
       background: #ccc;
-      cursor: not-allowed;
     }
     .message {
       margin-top: 15px;
@@ -57,33 +52,35 @@
       background: #f8d7da;
       color: #721c24;
     }
+    a {
+      color: #007bff;
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
-
   <div class="card">
     <h2>🎤 Rikodi Audio</h2>
     <button id="startBtn">▶️ Fara Rikodi</button>
     <button id="stopBtn" disabled>⏹️ Tsaya</button>
     <button id="sendBtn" disabled>📤 Tura zuwa Chatbot</button>
-
     <div id="msgBox" class="message"></div>
   </div>
 
   <script>
     let mediaRecorder;
     let audioChunks = [];
+    let audioBlob;
 
     const startBtn = document.getElementById("startBtn");
     const stopBtn = document.getElementById("stopBtn");
     const sendBtn = document.getElementById("sendBtn");
     const msgBox = document.getElementById("msgBox");
-    let audioBlob;
 
     startBtn.onclick = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
         audioChunks = [];
 
@@ -99,7 +96,7 @@
         startBtn.disabled = true;
         stopBtn.disabled = false;
       } catch (err) {
-        msgBox.textContent = "❌ Ba a iya samun izinin makirufo ba.";
+        msgBox.textContent = "❌ Ba a iya samun izinin makirufo: " + err.message;
         msgBox.className = "message error";
       }
     };
@@ -115,46 +112,37 @@
     sendBtn.onclick = () => {
       if (!audioBlob) return;
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64Audio = reader.result.split(',')[1]; // cire data:audio/webm;base64,
+      const formData = new FormData();
+      formData.append("id", "audio_" + Date.now());
+      formData.append("type", "audio");
+      formData.append("file", audioBlob, "recorded_audio.webm");
 
-        fetch('https://tauraron-wasa-admin.vercel.app/api/getLink', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': '@haruna66'
-          },
-          body: JSON.stringify({
-            id: 'audio_' + Date.now(),
-            type: 'audio',
-            filename: 'recorded_audio.webm',
-            mimetype: 'audio/webm',
-            data: base64Audio
-          })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            msgBox.innerHTML = `✅ Link daga chatbot: <a href="${data.link}" target="_blank">${data.link}</a>`;
-            msgBox.className = "message success";
-            sendBtn.disabled = true;
-          } else {
-            msgBox.textContent = "❌ " + (data.error || "Ba a samu nasara ba.");
-            msgBox.className = "message error";
-          }
-        })
-        .catch(err => {
-          msgBox.textContent = "⚠️ Matsala: " + err.message;
+      fetch('https://tauraron-wasa-admin.vercel.app/api/getLink', {
+        method: 'POST',
+        headers: {
+          'x-api-key': '@haruna66'
+        },
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.link) {
+          msgBox.innerHTML = `✅ <strong>Link daga chatbot:</strong><br><a href="${data.link}" target="_blank">${data.link}</a>`;
+          msgBox.className = "message success";
+          sendBtn.disabled = true;
+        } else {
+          msgBox.textContent = "❌ Chatbot bai dawo da link ba: " + (data.error || "Ba a bayyana ba");
           msgBox.className = "message error";
-        });
-      };
+        }
+      })
+      .catch(err => {
+        msgBox.textContent = "⚠️ Matsala yayin turawa: " + err.message;
+        msgBox.className = "message error";
+      });
 
-      reader.readAsDataURL(audioBlob);
       msgBox.textContent = "⏳ Ana tura zuwa chatbot...";
       msgBox.className = "message";
     };
   </script>
-
 </body>
 </html>
