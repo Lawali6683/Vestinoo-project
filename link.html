@@ -1,648 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ha">
 <head>
-  <meta charset="UTF-8">
-  <title>Multi Uploader | Haruna Lawali (JSON Edition)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rikodi Audio & Chatbot Link</title>
   <style>
-    :root {
-      --main: #2b4162;
-      --accent: #0b6e4f;
-      --bg: #f1f6f9;
-      --white: #fff;
-      --gray: #eaeaea;
-      --danger: #f87171;
-      --shadow: 0 8px 24px rgba(43,65,98,0.08);
-    }
     body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #f0f2f5, #e0eafc);
       margin: 0;
-      font-family: 'Segoe UI', 'Arial', sans-serif;
-      background: var(--bg);
-      min-height: 100vh;
-    }
-    .container {
-      max-width: 430px;
-      margin: 40px auto;
-      background: var(--white);
-      box-shadow: var(--shadow);
-      border-radius: 18px;
-      padding: 24px 20px 30px 20px;
-      position: relative;
-    }
-    header h1 {
-      font-size: 1.38rem;
-      margin: 0 0 16px 0;
-      color: var(--main);
-      text-align: center;
-      font-weight: 700;
-    }
-    .upload-buttons {
+      padding: 0;
       display: flex;
-      gap: 8px;
-      margin-bottom: 18px;
       justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
-    .upload-buttons button {
-      flex: 1;
-      background: var(--accent);
-      color: var(--white);
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
+    h2 {
+      color: #333;
+    }
+    button {
+      background: #007bff;
+      color: white;
       border: none;
-      font-size: 1rem;
-      padding: 12px 0;
+      padding: 12px 20px;
+      margin: 10px 0;
       border-radius: 8px;
       cursor: pointer;
-      font-weight: 500;
-      transition: background .18s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-    }
-    .upload-buttons button:hover {
-      background: #09714c;
-    }
-    #previewSection {
-      background: var(--gray);
-      margin-top: 12px;
-      padding: 15px 15px 10px 15px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(43,65,98,0.08);
-    }
-    #previewSection.hidden {
-      display: none;
-    }
-    .preview-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    #previewType {
-      font-weight: 600;
-      color: var(--main);
-      font-size: 1.1rem;
-      letter-spacing: .1px;
-    }
-    #removeBtn {
-      background: none;
-      border: none;
-      font-size: 1.25rem;
-      color: var(--danger);
-      cursor: pointer;
-      transition: color .18s;
-    }
-    #removeBtn:hover {
-      color: #dc2626;
-    }
-    .media-preview {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 12px;
-      min-height: 110px;
-    }
-    .media-preview img,
-    .media-preview video,
-    .media-preview audio {
-      max-width: 98%;
-      max-height: 180px;
-      border-radius: 7px;
-      background: #fff;
-      box-shadow: 0 1px 3px rgba(43,65,98,0.09);
-    }
-    .media-preview audio {
+      font-size: 16px;
       width: 100%;
-      outline: none;
     }
-    .audio-record {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .audio-record .controls {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 7px;
-    }
-    .audio-record button {
-      background: var(--accent);
-      color: var(--white);
-      border: none;
-      border-radius: 6px;
-      padding: 6px 14px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background .18s;
-    }
-    .audio-record button:disabled {
-      opacity: 0.6;
+    button:disabled {
+      background: #ccc;
       cursor: not-allowed;
     }
-    .audio-record button:hover:not(:disabled) {
-      background: #09714c;
-    }
-    .audio-record .timer {
-      font-size: 1.08rem;
-      color: var(--main);
-      font-weight: bold;
-    }
-    .link-actions {
-      display: flex;
-      gap: 7px;
-      margin-top: 3px;
-    }
-    .link-actions.hidden {
-      display: none;
-    }
-    #fileLink {
-      flex: 1;
-      font-size: .98rem;
-      padding: 6px 8px;
-      border: 1px solid #d6d7e0;
+    .message {
+      margin-top: 15px;
+      padding: 10px;
       border-radius: 6px;
-      background: #f8fafc;
-      color: #324;
-      overflow-x: auto;
+      font-size: 14px;
+      word-break: break-word;
     }
-    #copyBtn {
-      background: var(--accent);
-      color: var(--white);
-      border: none;
-      border-radius: 6px;
-      padding: 5px 10px;
-      font-size: 1.15rem;
-      cursor: pointer;
-      transition: background .18s;
+    .success {
+      background: #d4edda;
+      color: #155724;
     }
-    #copyBtn:hover {
-      background: #09714c;
-    }
-    #notif {
-      position: fixed;
-      bottom: 22px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--accent);
-      color: var(--white);
-      padding: 10px 28px;
-      border-radius: 8px;
-      font-size: 1rem;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .26s;
-      z-index: 100;
-    }
-    #notif.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    #errorDetail {
-      color: var(--danger);
-      font-size: .97rem;
-      margin: 7px 0 0 0;
-      text-align: center;
-      display: none;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    @media (max-width: 500px) {
-      .container {
-        max-width: 98vw;
-        padding: 13px 3vw 20px 3vw;
-      }
-      .media-preview img, .media-preview video, .media-preview audio {
-        max-width: 96vw;
-      }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Welcome Haruna Lawali,</h1>
-    </header>
-    <div class="upload-buttons">
-      <button id="videoBtn"><i class="fa-solid fa-video"></i> Upload Video</button>
-      <button id="imageBtn"><i class="fa-solid fa-image"></i> Upload Image</button>
-      <button id="audioBtn"><i class="fa-solid fa-music"></i> Upload Audio</button>
-    </div>
-    <input type="file" id="fileInput" hidden>
-    <section class="audio-record" id="audioRecordSection" style="display:none;">
-      <div class="controls">
-        <button id="startRecBtn"><i class="fa-solid fa-microphone"></i> Start</button>
-        <button id="stopRecBtn" disabled><i class="fa-solid fa-stop"></i> Stop</button>
-        <span class="timer" id="recTimer">00:00</span>
-      </div>
-      <audio id="recordedAudio" controls style="display:none;"></audio>
-      <button id="useRecordedBtn" style="display:none;">Use & Upload</button>
-    </section>
-    <section id="previewSection" class="hidden">
-      <div class="preview-header">
-        <span id="previewType"></span>
-        <button id="removeBtn" title="Remove"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="media-preview" id="mediaPreview"></div>
-      <div class="link-actions hidden" id="linkActions">
-        <input type="text" readonly id="fileLink">
-        <button id="copyBtn" title="Copy Link"><i class="fa-regular fa-copy"></i></button>
-      </div>
-    </section>
-    <div id="errorDetail"></div>
-    <div id="notif"></div>
+
+  <div class="card">
+    <h2>🎤 Rikodi Audio</h2>
+    <button id="startBtn">▶️ Fara Rikodi</button>
+    <button id="stopBtn" disabled>⏹️ Tsaya</button>
+    <button id="sendBtn" disabled>📤 Tura zuwa Chatbot</button>
+
+    <div id="msgBox" class="message"></div>
   </div>
+
   <script>
-    // --- DOM ELEMENTS ---
-    const fileInput = document.getElementById("fileInput");
-    const videoBtn = document.getElementById("videoBtn");
-    const imageBtn = document.getElementById("imageBtn");
-    const audioBtn = document.getElementById("audioBtn");
-    const previewSection = document.getElementById("previewSection");
-    const previewType = document.getElementById("previewType");
-    const mediaPreview = document.getElementById("mediaPreview");
-    const removeBtn = document.getElementById("removeBtn");
-    const linkActions = document.getElementById("linkActions");
-    const fileLink = document.getElementById("fileLink");
-    const copyBtn = document.getElementById("copyBtn");
-    const notif = document.getElementById("notif");
-    const errorDetail = document.getElementById("errorDetail");
+    let mediaRecorder;
+    let audioChunks = [];
 
-    // Audio record UI
-    const audioRecordSection = document.getElementById("audioRecordSection");
-    const startRecBtn = document.getElementById("startRecBtn");
-    const stopRecBtn = document.getElementById("stopRecBtn");
-    const recTimer = document.getElementById("recTimer");
-    const recordedAudio = document.getElementById("recordedAudio");
-    const useRecordedBtn = document.getElementById("useRecordedBtn");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const sendBtn = document.getElementById("sendBtn");
+    const msgBox = document.getElementById("msgBox");
+    let audioBlob;
 
-    let currentType = null;
-    let lastFile = null;
-    let recChunks = [];
-    let recMediaRecorder = null;
-    let recStartTime = null;
-    let recInterval = null;
-    let recBlob = null;
-
-    function showNotif(msg, color) {
-      notif.textContent = msg;
-      notif.style.background = color || 'var(--accent)';
-      notif.classList.add('show');
-      setTimeout(() => notif.classList.remove('show'), 1700);
-    }
-
-    function showErrorDetail(errText) {
-      errorDetail.style.display = "block";
-      errorDetail.textContent = errText || "";
-    }
-    function hideErrorDetail() {
-      errorDetail.style.display = "none";
-      errorDetail.textContent = "";
-    }
-
-    // ========== UPLOAD BUTTONS ==========
-    videoBtn.onclick = () => {
-      audioRecordSection.style.display = 'none';
-      openFilePicker("video/*", "video");
-      hideErrorDetail();
-    };
-    imageBtn.onclick = () => {
-      audioRecordSection.style.display = 'none';
-      openFilePicker("image/*", "image");
-      hideErrorDetail();
-    };
-    audioBtn.onclick = () => {
-      audioRecordSection.style.display = '';
-      previewSection.classList.add("hidden");
-      linkActions.classList.add("hidden");
-      openFilePicker("audio/*,audio/webm", "audio");
-      hideErrorDetail();
-    };
-
-    function openFilePicker(accept, type) {
-      fileInput.value = "";
-      fileInput.accept = accept;
-      fileInput.multiple = false;
-      currentType = type;
-      fileInput.click();
-    }
-
-    // ========== FILE SELECTION HANDLER ==========
-    fileInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      hideErrorDetail();
-      if (currentType === "video" && file.size > 210 * 1024 * 1024) {
-        showNotif("Video ya fi 200MB. Zabi wata video", "var(--danger)");
-        return;
-      }
-      if (currentType === "image" && file.size > 32 * 1024 * 1024) {
-        showNotif("Image ya fi 32MB. Zabi wata image", "var(--danger)");
-        return;
-      }
-      if (currentType === "audio" && file.size > 70 * 1024 * 1024) {
-        showNotif("Audio ya fi 70MB. Zabi wata audio", "var(--danger)");
-        return;
-      }
-      showPreview(file, currentType);
-      lastFile = file;
-      previewType.textContent = "Uploading...";
-      linkActions.classList.add("hidden");
-      await doUpload(file, currentType);
-    };
-
-    // ========== PREVIEW ==========
-    function showPreview(file, type) {
-      previewSection.classList.remove("hidden");
-      let url = URL.createObjectURL(file);
-      let el;
-      if (type === "image") {
-        el = document.createElement("img");
-        el.src = url;
-        el.alt = "uploaded image";
-      } else if (type === "video") {
-        el = document.createElement("video");
-        el.src = url;
-        el.controls = true;
-      } else if (type === "audio") {
-        el = document.createElement("audio");
-        el.src = url;
-        el.controls = true;
-      }
-      mediaPreview.innerHTML = "";
-      mediaPreview.appendChild(el);
-    }
-
-    removeBtn.onclick = () => {
-      previewSection.classList.add("hidden");
-      mediaPreview.innerHTML = "";
-      lastFile = null;
-      linkActions.classList.add("hidden");
-      hideErrorDetail();
-    };
-
-    // ========== IMAGE UPLOAD (IMGUR ONLY) ==========
-    async function compressImage(file) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = ev => {
-          img.onload = () => {
-            let scale = 1;
-            const maxDim = 1024;
-            if (img.width > maxDim || img.height > maxDim) {
-              scale = Math.min(maxDim / img.width, maxDim / img.height);
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
-            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(blob => {
-              const random4 = Math.random().toString(36).substring(2, 6);
-              resolve(new File([blob], `${random4}_${Date.now()}.png`, { type: "image/png" }));
-            }, "image/png", 0.7);
-          };
-          img.onerror = reject;
-          img.src = ev.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    async function uploadToImgur(file) {
-      const formData = new FormData();
-      formData.append('image', file);
-      let response, data;
+    startBtn.onclick = async () => {
       try {
-        response = await fetch('https://api.imgur.com/3/image', {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          sendBtn.disabled = false;
+        };
+
+        mediaRecorder.start();
+        msgBox.textContent = "🔴 Ana rikodi...";
+        msgBox.className = "message";
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      } catch (err) {
+        msgBox.textContent = "❌ Ba a iya samun izinin makirufo ba.";
+        msgBox.className = "message error";
+      }
+    };
+
+    stopBtn.onclick = () => {
+      mediaRecorder.stop();
+      msgBox.textContent = "✅ An gama rikodi. Zaka iya tura.";
+      msgBox.className = "message";
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    };
+
+    sendBtn.onclick = () => {
+      if (!audioBlob) return;
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Audio = reader.result.split(',')[1]; // cire data:audio/webm;base64,
+
+        fetch('https://tauraron-wasa-admin.vercel.app/api/getLink', {
           method: 'POST',
-          headers: { Authorization: 'Client-ID 5acf7eff9c91660' },
-          body: formData,
-        });
-        data = await response.json();
-      } catch (fetchErr) {
-        throw {
-          stage: 'Imgur fetch',
-          message: fetchErr.message,
-          detail: fetchErr.stack || fetchErr
-        };
-      }
-      if (data && data.success && data.data && data.data.link) return data.data.link;
-      throw {
-        stage: 'Imgur response',
-        message: (data && data.data && data.data.error) ? data.data.error : 'Imgur upload failed',
-        detail: JSON.stringify(data, null, 2)
-      };
-    }
-
-    async function uploadImageWorkflow(file) {
-      try {
-        const compressed = await compressImage(file);
-        return await uploadToImgur(compressed);
-      } catch (err) {
-        throw {
-          stage: (err && err.stage) || 'Image Compression/Upload',
-          message: err && err.message ? err.message : (err + ""),
-          detail: err && err.detail ? err.detail : (typeof err === "object" ? JSON.stringify(err, null, 2) : err)
-        };
-      }
-    }
-
-    // ========== AUDIO / VIDEO UPLOAD (API ONLY, JSON) ==========
-    async function prepareAudioFile(file) {
-      let ext = file.name.split('.').pop().toLowerCase();
-      let base = file.name.replace(/\.[^/.]+$/, '');
-      if (ext !== 'mp3' && ext !== 'webm') {
-        ext = 'mp3';
-      }
-      return new File([file], `${base}.${ext}`, { type: file.type });
-    }
-
-    // Helper to convert a File/Blob to base64 (for JSON body)
-    async function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // Main upload function: sends type and base64 via JSON
-    async function doUpload(file, type) {
-      previewType.textContent = {
-        image: "Uploading Image...",
-        video: "Uploading Video...",
-        audio: "Uploading Audio..."
-      }[type];
-
-      let url = '';
-      try {
-        if (type === "image") {
-          url = await uploadImageWorkflow(file); // Still direct to imgur
-        } else if (type === "video" || type === "audio") {
-          let fileToSend = file;
-          if (type === "audio") {
-            fileToSend = await prepareAudioFile(file);
-          }
-          const base64 = await fileToBase64(fileToSend);
-          // random unique id for the upload
-          const id = 'id_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
-          const jsonBody = {
-            id,
-            type,
-            filename: fileToSend.name,
-            mimetype: fileToSend.type,
-            data: base64
-          };
-
-          // ---- EDITED: Use try/catch for fetch and check for network errors -----
-          let response, data;
-          try {
-            response = await fetch("https://worker33.lawaliharuna943.workers.dev/getLink", {
-              method: "POST",
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(jsonBody),
-              // Mode and credentials left default for Cloudflare Worker, no-cors NOT needed!
-            });
-          } catch (fetchErr) {
-            throw {
-              stage: 'Cloudflare Worker fetch',
-              message: fetchErr.message,
-              detail: fetchErr.stack || fetchErr
-            };
-          }
-          if (!response) {
-            throw {
-              stage: 'Cloudflare Worker fetch',
-              message: "No response from worker.",
-              detail: ""
-            };
-          }
-          if (!response.ok) {
-            let errText = '';
-            try { errText = await response.text(); } catch {}
-            throw {
-              stage: 'Cloudflare Worker HTTP',
-              message: `HTTP ${response.status}: ${response.statusText}`,
-              detail: errText
-            };
-          }
-          try {
-            data = await response.json();
-          } catch (jsonErr) {
-            throw {
-              stage: 'Cloudflare Worker JSON parse',
-              message: jsonErr.message,
-              detail: jsonErr.stack || jsonErr
-            };
-          }
-          if (data && data.success && data.link) {
-            url = data.link;
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': '@haruna66'
+          },
+          body: JSON.stringify({
+            id: 'audio_' + Date.now(),
+            type: 'audio',
+            filename: 'recorded_audio.webm',
+            mimetype: 'audio/webm',
+            data: base64Audio
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            msgBox.innerHTML = `✅ Link daga chatbot: <a href="${data.link}" target="_blank">${data.link}</a>`;
+            msgBox.className = "message success";
+            sendBtn.disabled = true;
           } else {
-            throw {
-              stage: 'Cloudflare Worker response',
-              message: (data && data.error) ? data.error : "Bai yi uploading ba",
-              detail: JSON.stringify(data, null, 2)
-            };
+            msgBox.textContent = "❌ " + (data.error || "Ba a samu nasara ba.");
+            msgBox.className = "message error";
           }
-        }
-        if (!url) throw {
-          stage: 'No Link',
-          message: "Bai samu link ba",
-          detail: ""
-        };
-        previewType.textContent = capitalize(type) + " Uploaded!";
-        fileLink.value = url;
-        linkActions.classList.remove("hidden");
-        showNotif(capitalize(type) + " uploaded successfully!");
-        hideErrorDetail();
-      } catch (err) {
-        previewType.textContent = "Upload error!";
-        let errMsg = "Error: ";
-        if (err && typeof err === "object") {
-          errMsg += (err.stage ? `[${err.stage}] ` : "") + (err.message || "");
-        } else {
-          errMsg += err;
-        }
-        showNotif(errMsg, "var(--danger)");
-        showErrorDetail(
-          (err && typeof err === "object")
-            ? ((err.stage ? "Mataki/Stage: " + err.stage + "\n" : "") +
-                (err.message ? "Sako/Message: " + err.message + "\n" : "") +
-                (err.detail ? "Detail:\n" + err.detail : ""))
-            : (errMsg)
-        );
-      }
-    }
+        })
+        .catch(err => {
+          msgBox.textContent = "⚠️ Matsala: " + err.message;
+          msgBox.className = "message error";
+        });
+      };
 
-    // ========== AUDIO RECORDING (webm) ==========
-    let mediaStream = null;
-    startRecBtn.onclick = async () => {
-      recChunks = [];
-      recBlob = null;
-      recordedAudio.style.display = "none";
-      useRecordedBtn.style.display = "none";
-      recTimer.textContent = "00:00";
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recMediaRecorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm" });
-        recMediaRecorder.ondataavailable = (e) => recChunks.push(e.data);
-        recMediaRecorder.onstop = () => {
-          recBlob = new Blob(recChunks, { type: "audio/webm" });
-          recordedAudio.src = URL.createObjectURL(recBlob);
-          recordedAudio.style.display = "";
-          useRecordedBtn.style.display = "";
-        };
-        recMediaRecorder.start();
-        recStartTime = Date.now();
-        recInterval = setInterval(() => {
-          let elapsed = Math.floor((Date.now() - recStartTime) / 1000);
-          let m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-          let s = String(elapsed % 60).padStart(2, '0');
-          recTimer.textContent = m + ":" + s;
-        }, 500);
-        startRecBtn.disabled = true;
-        stopRecBtn.disabled = false;
-      } catch (err) {
-        showNotif("Recording error: " + err.message, "var(--danger)");
-        showErrorDetail("Mataki/Stage: Microphone Access\nSako/Message: " + (err.message || err));
-      }
+      reader.readAsDataURL(audioBlob);
+      msgBox.textContent = "⏳ Ana tura zuwa chatbot...";
+      msgBox.className = "message";
     };
-    stopRecBtn.onclick = () => {
-      if (recMediaRecorder && recMediaRecorder.state === "recording") {
-        recMediaRecorder.stop();
-        startRecBtn.disabled = false;
-        stopRecBtn.disabled = true;
-        clearInterval(recInterval);
-      }
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-    };
-    useRecordedBtn.onclick = async () => {
-      if (!recBlob) return;
-      const random4 = Math.random().toString(36).substring(2, 6);
-      const file = new File([recBlob], `${random4}_${Date.now()}.webm`, { type: "audio/webm" });
-      showPreview(file, "audio");
-      previewType.textContent = "Uploading...";
-      linkActions.classList.add("hidden");
-      await doUpload(file, "audio");
-      audioRecordSection.style.display = "none";
-    };
-
-    // ========== COPY TO CLIPBOARD ==========
-    copyBtn.onclick = () => {
-      if (!fileLink.value) return;
-      navigator.clipboard.writeText(fileLink.value);
-      showNotif("Copy link successfully!");
-    };
-
-    function capitalize(str) {
-      return str.charAt(0).toUpperCase() + str.slice(1);
-    }
   </script>
+
 </body>
 </html>
