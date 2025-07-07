@@ -3,814 +3,561 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Global Crypto Wallet</title>
+  <title>Vestinoo | Payment Approval</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
   <style>
-    :root {
-      --wallet-bg: #181c24;
-      --wallet-card: #212735;
-      --accent: #ffd700;
-      --primary: #1c7bfc;
-      --success: #01bc54;
-      --danger: #d32f2f;
-      --coin-bnb: #f3ba2f;
-      --coin-usdt: #26a17b;
-      --coin-trx: #ec0928;
-      --coin-usdc: #2775ca;
-      --coin-eth: #627eea;
-      --coin-btc: #f7931a;
-      --text-main: #f4f4f4;
-      --text-muted: #a0aec0;
-    }
-    * { box-sizing: border-box; }
     body {
       font-family: 'Inter', sans-serif;
-      background: var(--wallet-bg);
-      color: var(--text-main);
+      background-color: #0e0e0e;
+      color: #f4f4f4;
       margin: 0;
       padding: 0;
-      min-height: 100vh;
     }
-    .wallet-container {
-      max-width: 470px;
-      margin: 36px auto 0 auto;
-      background: var(--wallet-card);
-      border-radius: 18px;
-      box-shadow: 0 12px 36px rgba(0,0,0,0.19);
-      padding: 30px 22px 18px 22px;
+
+    header {
+      background-color: #141414;
+      padding: 1rem 2rem;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-bottom: 2px solid #1e1e1e;
+    }
+
+    .container, .login-container {
+      padding: 2rem;
+    }
+
+    .welcome {
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+    }
+
+    .withdraw-box {
+      background-color: #1b1b1b;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 10px;
+      border: 1px solid #333;
       position: relative;
     }
-    .wallet-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .wallet-header h2 {
-      font-size: 1.8em;
-      font-weight: 700;
-      margin: 0;
-      letter-spacing: 1.2px;
-      color: var(--accent);
-    }
-    .wallet-balance {
-      font-size: 2.6em;
-      font-weight: 700;
-      color: var(--success);
-      margin: 8px 0 2px 0;
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-    }
-    .wallet-balance span {
-      font-size: 0.5em;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-    .wallet-addr {
-      font-family: monospace;
-      font-size: 1em;
-      background: #22272f;
-      color: #fff;
+
+    .withdraw-box .status-badge {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      padding: 5px 10px;
       border-radius: 8px;
-      padding: 7px 12px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      user-select: all;
-    }
-    .copy-btn {
-      background: var(--primary);
+      font-size: 0.8rem;
+      font-weight: bold;
       color: white;
-      border: none;
-      border-radius: 5px;
-      padding: 3px 10px;
-      cursor: pointer;
-      font-size: 0.95em;
-      margin-left: 6px;
-    }
-    .wallet-actions {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .wallet-actions button {
-      flex: 1;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 13px 0;
-      font-size: 1.13em;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 3px 12px rgba(21,34,56,0.10);
-      transition: background 0.12s;
-    }
-    .wallet-actions button.receive {
-      background: var(--success);
-    }
-    .wallet-actions button.send {
-      background: var(--danger);
-    }
-    .wallet-actions button:hover {
-      opacity: .94;
-    }
-    .coin-list {
-      margin-bottom: 26px;
-    }
-    .coin-card {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: #242c3a;
-      border-radius: 10px;
-      padding: 12px 14px 12px 10px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      transition: background 0.13s;
-      border: 2px solid transparent;
-      position: relative;
-    }
-    .coin-card.selected {
-      border: 2px solid var(--accent);
-      background: #26313f;
-    }
-    .coin-card .coin-logo {
-      width: 38px;
-      height: 38px;
-      background: node;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    .coin-card .coin-symbol {
-      font-weight: 700;
-      font-size: 1.1em;
-    }
-    .coin-card .coin-balance {
-      margin-left: auto;
-      font-size: 1.1em;
-      font-weight: 600;
-      color: var(--success);
-    }
-    .coin-card .coin-rate {
-      margin-left: 10px;
-      font-size: 0.95em;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-    .coin-card .trend {
-      margin-left: 8px;
-      font-size: 1.33em;
-      vertical-align: middle;
-    }
-    .divider {
-      margin: 25px 0 18px 0;
-      border-top: 1.5px solid #262d3b;
-    }
-    .transfer-form {
-      background: #232d3a;
-      border-radius: 10px;
-      padding: 18px 14px 12px 14px;
-      margin-bottom: 20px;
-      display: none;
-      flex-direction: column;
-      gap: 13px;
-      animation: fadeIn .45s;
-    }
-    .transfer-form label {
-      margin-bottom: 4px;
-      font-weight: 600;
-    }
-    .transfer-form input,
-    .transfer-form select {
-      width: 100%;
-      padding: 9px 12px;
-      border-radius: 7px;
-      border: 1.5px solid #28304a;
-      background: #161c23;
-      color: #fff;
-      font-size: 1.07em;
-      margin-bottom: 7px;
-      outline: none;
-    }
-    .transfer-form button {
-      margin-top: 11px;
-      width: 100%;
-      padding: 11px;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      font-weight: bold;
-      font-size: 1.13em;
-      cursor: pointer;
-    }
-    .transfer-form .cancel-btn {
-      background: #2d333f;
-      color: #fff;
-      margin-top: 4px;
-    }
-    .tx-list {
-      margin-bottom: 10px;
-    }
-    .tx-card {
-      background: #212735;
-      border-radius: 8px;
-      padding: 13px 13px 10px 13px;
-      margin-bottom: 9px;
-      display: flex;
-      align-items: center;
-      gap: 13px;
-      box-shadow: 0 2px 10px rgba(20,20,25,0.07);
-      font-size: 0.97em;
-      position: relative;
-    }
-    .tx-card .tx-coin-logo {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .tx-card .tx-main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .tx-card .tx-type {
-      font-weight: 700;
-      font-size: 1.09em;
-    }
-    .tx-card .tx-amount {
-      font-size: 1.13em;
-      font-weight: 700;
-    }
-    .tx-card .tx-address {
-      color: #a0aec0;
-      font-size: 0.93em;
-      font-family: monospace;
-      word-break: break-all;
-    }
-    .tx-card .tx-time {
-      font-size: 0.91em;
-      color: #b7c1d1;
-      font-weight: 500;
-    }
-    .tx-card .tx-id {
-      font-size: 0.92em;
-      color: #ffd700;
-      font-family: monospace;
-      font-weight: 500;
-      margin-top: 2px;
-    }
-    .tx-card .tx-status {
-      position: absolute;
-      right: 12px;
-      top: 14px;
-      font-size: 0.82em;
-      padding: 1.5px 7px;
-      border-radius: 7px;
-      font-weight: bold;
-      background: var(--success);
-      color: #fff;
-      box-shadow: 0 1px 4px rgba(18,28,44,0.09);
-    }
-    .tx-card.sent .tx-status {
-      background: var(--danger);
-    }
-    .add-funds-btn {
-      display: inline-block;
-      background: var(--primary);
-      color: #fff;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-      padding: 7px 16px;
-      margin-bottom: 12px;
-      margin-top: 2px;
-      font-size: 1.07em;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(21,34,56,0.09);
-      transition: background 0.13s;
-    }
-    .add-funds-btn:hover {
-      background: #195ab3;
-    }
-    .mini-alert {
-      background: #191d24;
-      color: var(--success);
-      padding: 7px 19px;
-      border-radius: 7px;
-      text-align: center;
-      margin-bottom: 12px;
-      font-size: 1.07em;
-      display: none;
-    }
-    @media (max-width: 540px) {
-      .wallet-container { padding: 10px 3vw 10px 3vw; }
-      .wallet-header h2 { font-size: 1.2em; }
-      .wallet-balance { font-size: 1.6em; }
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px);}
-      to { opacity: 1; transform: translateY(0);}
-    }
-    /* ---------- FULLSCREEN SUCCESS PUSH ---------- */
-    .push-success-container {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      width: 100vw; height: 100vh;
-      background: rgba(30,40,50,0.96);
-      z-index: 99999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: opacity 0.2s;
-      animation: fadeIn .5s;
-    }
-    .push-success-content {
-      background: #fff;
-      color: #212735;
-      border-radius: 22px;
-      padding: 44px 30px 32px 30px;
-      box-shadow: 0 8px 60px 6px rgba(21,34,70,0.16);
-      max-width: 350px;
-      width: 100%;
-      text-align: center;
-      position: relative;
-      animation: fadeIn .7s;
-    }
-    .push-success-content .close-push {
-      position: absolute;
-      top: 18px;
-      right: 18px;
-      font-size: 2.1em;
-      background: none;
-      border: none;
-      color: #c62828;
-      cursor: pointer;
       z-index: 2;
-      line-height: 1;
-      font-weight: bold;
-      transition: color .12s;
     }
-    .push-success-content .close-push:hover {
-      color: #b71c1c;
+    .withdraw-box .status-badge.red {
+      background-color: #e53935;
     }
-    .push-success-content .big-success {
-      font-size: 3.8em;
-      margin-bottom: 18px;
-      color: var(--success);
-      font-weight: bold;
+    .withdraw-box .status-badge.green {
+      background-color: #43a047;
     }
-    .push-success-content .success-title {
-      font-size: 1.46em;
-      font-weight: bold;
-      color: #212735;
+
+    .withdraw-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
       margin-bottom: 10px;
-      letter-spacing: .5px;
+      font-size: 13px;
     }
-    .push-success-content .success-desc {
-      color: #344262;
-      font-size: 1.09em;
-      margin-bottom: 18px;
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
     }
-    .push-success-content .success-details {
-      text-align: left;
-      background: #f4f7fe;
-      border-radius: 13px;
-      padding: 12px 15px 8px 15px;
-      margin-top: 12px;
-      font-size: 0.97em;
-      word-break: break-all;
-      color: #222a3c;
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    .btn.approve { background-color: #2e7d32; color: white; }
+    .btn.cancel { background-color: #c62828; color: white; }
+    .btn:hover { opacity: 0.9; }
+
+    .no-requests {
+      text-align: center;
+      margin-top: 50px;
+      font-size: 1.2rem;
+      color: #888;
+    }
+
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background-color: #1b1b1b;
+      padding: 2rem;
+      border-radius: 10px;
+      border: 1px solid #333;
+    }
+
+    .login-container h2 {
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 10px;
+      margin: 0.5rem 0;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background-color: #121212;
+      color: white;
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 1rem;
+      background-color: #2e7d32;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      .withdraw-info {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="wallet-container" id="walletApp">
-    <div class="wallet-header">
-      <h2>Vestinoo Global Crypto Wallet</h2>
-      <span style="font-size:1.3em; color:var(--primary)">🌐</span>
+
+  <header>Vestinoo Payment Approval Panel</header>
+
+  <!-- Login Form -->
+  <div class="login-container" id="loginForm">
+    <h2>Agent Login</h2>
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div class="welcome" id="welcomeText" style="display: none;"></div>
+  <div class="container" id="withdrawContainer" style="display: none;">
+    <div class="no-requests" id="noRequests">No withdrawal requests at the moment.</div>
+  </div>
+
+<script type="module"> 
+import { app } from './firebase.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword
+} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+import {
+  getDatabase,
+  ref,
+  get,
+  update,
+  remove
+} from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js';
+
+// ========== EMAILJS CONFIG ==========
+const EMAILJS_PUBLIC_KEY = "Q9PGak13xt3YWstRl";
+const EMAILJS_PRIVATE_KEY = "7N3vc4_G0q8lO1Az4Ku-3";
+const EMAILJS_TEMPLATE_ID = "template_jfcpgyq";
+const EMAILJS_SERVICE_ID = "default_service"; // Use the default EmailJS SMTP service
+
+if (!window.emailjs) {
+  throw new Error("EmailJS SDK not loaded. Please include emailjs-com CDN before this script.");
+}
+emailjs.init(EMAILJS_PUBLIC_KEY);
+
+// ========== EMAIL SENDER WITH EMAILJS ==========
+/**
+ * Send an email via EmailJS
+ * @param {Object} params - Object with keys:
+ *   to_name, to_email, subject, html_content, email_id, [additional template params]
+ * @returns {Promise<{status: string, text: string}>}
+ * Throws error with details if fails.
+ */
+async function sendEmailWithEmailJS(params) {
+  try {
+    // Compose the template parameters
+    const templateParams = {
+      to_name: params.to_name,
+      to_email: params.to_email,
+      subject: params.subject,
+      html_content: params.html_content,
+      email_id: params.email_id,
+      // ...any other fields as needed by your template
+    };
+    // Add additional params if provided
+    if (params.extra) Object.assign(templateParams, params.extra);
+
+    // EmailJS: send with private key for secure send
+    const res = await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      EMAILJS_TEMPLATE_ID,
+      templateParams,
+      EMAILJS_PUBLIC_KEY,
+      EMAILJS_PRIVATE_KEY // required for server-side send
+    );
+    return { status: "ok", text: `Email sent: ${res.text || res.status}` };
+  } catch (error) {
+    // Try to extract EmailJS error details
+    let errMsg = "Failed to send email";
+    if (error && error.text) {
+      errMsg = error.text;
+    } else if (typeof error === "string") {
+      errMsg = error;
+    } else if (error && error.message) {
+      errMsg = error.message;
+    }
+    throw new Error(`EmailJS Error: ${errMsg}`);
+  }
+}
+
+function generateEmailId(prefix = "VNOO") {
+  return `${prefix}-${Math.floor(100000 + Math.random() * 900000)}-${Date.now()}`;
+}
+
+function formatDateLocal(epochTime) {
+  try {
+    if (!epochTime) return "";
+    const date = new Date(epochTime);
+    return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return "";
+  }
+}
+
+// ========== EMAIL TEMPLATES (HTML) ==========
+
+function paymentSuccessTemplate({ fullName, amount, walletAddress, withdrawalTime, emailId }) {
+  return `
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(33,33,33,0.15);padding:36px 26px 30px;font-family:'Segoe UI',Arial,sans-serif;">
+    <div style="text-align:center;margin-bottom:28px">
+      <img src="https://vestinoo.pages.dev/log" alt="Vestinoo" style="height:50px;margin-bottom:8px">
+      <h2 style="color:#0a1d56;font-size:2em;margin:0 0 3px;font-weight:700;letter-spacing:1px;">Withdrawal Successful</h2>
+      <div style="font-size:1.12em;color:#222;">Thank you for choosing <b style="color:#1c7bfc;">Vestinoo</b>!</div>
     </div>
-    <div class="wallet-balance" id="mainBalance"></div>
-    <div class="wallet-addr" id="mainWalletAddr">
-      <span id="mainWalletAddrText"></span>
-      <button class="copy-btn" onclick="copyToClipboard(mainWalletAddrText.innerText)">Copy</button>
+    <div style="background:#f6f8fa;border-radius:10px;padding:26px 18px 18px;margin-bottom:18px;border:1px solid #ecf0f4">
+      <div style="font-size:1.1em;font-weight:600;color:#1c7bfc;margin-bottom:4px;">Hi ${fullName},</div>
+      <div style="font-size:1em;color:#222;margin-bottom:18px">
+        Your withdrawal has been <b style="color:#01bc54;">successfully processed</b>.<br>
+        <span style="color:#01bc54;font-weight:500;">Congratulations!</span>
+      </div>
+      <div style="margin-bottom:8px;display:flex;align-items:center;">
+        <span style="font-weight:500;color:#374151;flex:1;">Amount Paid:</span>
+        <span style="font-size:2.2em;font-weight:700;color:#01bc54;letter-spacing:1px;">$${parseFloat(amount).toLocaleString()}</span>
+      </div>
+      <div style="margin-bottom:4px;"><b>Wallet Address:</b> <span style="font-family:monospace;color:#1a237e">${walletAddress}</span></div>
+      <div style="margin-bottom:4px;"><b>Date:</b> <span style="color:#222">${formatDateLocal(withdrawalTime)}</span></div>
+      <div style="margin-bottom:4px;"><b>Transaction ID:</b> <span style="color:#0a1d56;">${emailId}</span></div>
     </div>
-    <button class="add-funds-btn" id="addFundsBtn">+</button>
-
-    <div class="divider"></div>
-
-    <div class="coin-list" id="coinList"></div>
-
-    <div class="wallet-actions">
-      <button class="receive" id="receiveBtn">➕ Receive</button>
-      <button class="send" id="sendBtn">➖ Send</button>
+    <div style="margin:16px 0 10px 0;color:#555;font-size:1em;">
+      If you have any questions, or did not authorize this withdrawal, please contact our support with your Transaction ID <b style="color:#0a1d56;">${emailId}</b>.
     </div>
-
-    <div class="mini-alert" id="miniAlert"></div>
-
-    <form class="transfer-form" id="transferForm">
-      <label for="coinSelect">Coin</label>
-      <select id="coinSelect"></select>
-      <label for="toAddr">Wallet Address</label>
-      <input type="text" id="toAddr" placeholder="Enter recipient address" autocomplete="off" />
-      <label for="amount">Amount</label>
-      <input type="number" id="amount" placeholder="Enter amount" min="1" step="1" />
-      <button type="submit" id="transferSubmitBtn"></button>
-      <button type="button" class="cancel-btn" id="transferCancelBtn">Cancel</button>
-    </form>
-
-    <div class="divider"></div>
-    <div>
-      <div style="font-weight: 600; font-size: 1.18em; margin-bottom: 8px; color:var(--primary)">Recent Activity</div>
-      <div class="tx-list" id="txList"></div>
+    <div style="margin-top:18px;text-align:center;">
+      <a href="mailto:vestinoomine@gmail.com" style="color:#fff;background:#1c7bfc;padding:12px 34px;border-radius:6px;text-decoration:none;font-weight:700;letter-spacing:1px;">Contact Support</a>
+    </div>
+    <div style="margin:24px 0 0;text-align:center;font-size:.9em;color:#aaa;">
+      &copy; ${new Date().getFullYear()} Vestinoo. All rights reserved.
     </div>
   </div>
-  <div id="pushSuccessContainer" class="push-success-container" style="display:none;">
-    <div class="push-success-content" id="pushSuccessContent">
-      <button class="close-push" id="closePushBtn" title="Close">&times;</button>
-      <div class="big-success">✔️</div>
-      <div class="success-title" id="pushSuccessTitle"></div>
-      <div class="success-desc" id="pushSuccessDesc"></div>
-      <div class="success-details" id="pushSuccessDetails"></div>
+  `;
+}
+
+function withdrawalFailedTemplate({ fullName, amount, withdrawalTime, emailId }) {
+  return `
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(33,33,33,0.14);padding:36px 26px 30px;font-family:'Segoe UI',Arial,sans-serif;">
+    <div style="text-align:center;margin-bottom:28px">
+      <img src="https://vestinoo.pages.dev/logo" alt="Vestinoo" style="height:50px;margin-bottom:8px">
+      <h2 style="color:#d32f2f;font-size:2em;margin:0 0 3px;font-weight:700;letter-spacing:1px;">Withdrawal Request Canceled</h2>
+    </div>
+    <div style="background:#fff6f7;border-radius:10px;padding:22px 18px 18px;margin-bottom:18px;border:1px solid #ffe5e7">
+      <div style="font-size:1.1em;font-weight:600;color:#d32f2f;margin-bottom:4px;">Dear ${fullName},</div>
+      <div style="font-size:1em;color:#333;margin-bottom:12px">
+        Unfortunately, your withdrawal request could not be processed due to high network congestion.<br>
+        Please try again later.
+      </div>
+      <div style="margin-bottom:8px;display:flex;align-items:center;">
+        <span style="font-weight:500;color:#374151;flex:1;">Amount:</span>
+        <span style="font-size:1.5em;font-weight:700;color:#d32f2f;letter-spacing:1px;">$${parseFloat(amount).toLocaleString()}</span>
+      </div>
+      <div style="margin-bottom:4px;"><b>Requested Time:</b> <span style="color:#222">${formatDateLocal(withdrawalTime)}</span></div>
+      <div style="margin-bottom:4px;"><b>Transaction ID:</b> <span style="color:#d32f2f;">${emailId}</span></div>
+    </div>
+    <div style="margin:14px 0 10px 0;color:#555;font-size:1em;">
+      This is a system issue, not from Vestinoo.<br>
+      For urgent help, contact <a href="mailto:vestinoomine@gmail.com" style="color:#1c7bfc;">Vestinoo Support</a> with Transaction ID <b style="color:#d32f2f;">${emailId}</b>.
+    </div>
+    <div style="margin-top:18px;text-align:center;">
+      <a href="mailto:vestinoomine@gmail.com" style="color:#fff;background:#d32f2f;padding:12px 34px;border-radius:6px;text-decoration:none;font-weight:700;letter-spacing:1px;">Get Help</a>
+    </div>
+    <div style="margin:24px 0 0;text-align:center;font-size:.9em;color:#aaa;">
+      &copy; ${new Date().getFullYear()} Vestinoo. All rights reserved.
     </div>
   </div>
-  <script>
-    // ------------------ CONFIG -------------------
-    const COINS = [
-      {
-        id: "bnb",
-        symbol: "BNB",
-        name: "BNB (BEP20)",
-        color: "var(--coin-bnb)",
-        logo: "BnB.png",
-        rate: 585.09,
-        fluct: true
-      },
-      {
-        id: "usdt",
-        symbol: "USDT",
-        name: "Tether USDT (BEP20)",
-        color: "var(--coin-usdt)",
-        logo: "usdt.png",
-        rate: 1.0,
-        fluct: true
-      },
-      {
-        id: "trx",
-        symbol: "TRX",
-        name: "TRON TRX (BEP20)",
-        color: "var(--coin-trx)",
-        logo: "trx1.png",
-        rate: 0.121,
-        fluct: true 
-      },
-      {
-        id: "usdc",
-        symbol: "USDC",
-        name: "USD Coin USDC (BEP20)",
-        color: "var(--coin-usdc)",
-        logo: "usdc.png",
-        rate: 1.0,
-        fluct: false
-      },
-      {
-        id: "btc",
-        symbol: "BTC",
-        name: "Bitcoin",
-        color: "var(--coin-btc)",
-        logo: "https://cdn.jsdelivr.net/gh/AgroFruit24/fake-crypto-icons@main/btc.svg",
-        rate: 64600,
-        fluct: false
-      },
-      {
-        id: "eth",
-        symbol: "ETH",
-        name: "Ethereum",
-        color: "var(--coin-eth)",
-        logo: "https://cdn.jsdelivr.net/gh/AgroFruit24/fake-crypto-icons@main/eth.svg",
-        rate: 3400,
-        fluct: false
-      }
-    ];
-    const MAIN_COINS = ["bnb", "usdt", "trx", "usdc"];
+  `;
+}
 
-    // ------------------ STORAGE -------------------
-    const STORAGE_KEY = "fake_wallet_data_competition";
-    function saveData(data) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
-    function loadData() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null;
-      } catch {
-        return null;
-      }
-    }
-    function randomWalletAddress(coin) {
-      if (coin === "bnb" || coin === "usdt" || coin === "usdc") {
-        return "0x" + Array.from({length:40},()=>Math.floor(Math.random()*16).toString(16)).join('');
-      }
-      if (coin === "trx") {
-        const chars = "1234567ABCDHJKRSTUVWXYZabcfghijkmpqrstuvwx";
-        let addr = "T";
-        for (let i = 0; i < 33; ++i) addr += chars[Math.floor(Math.random()*chars.length)];
-        return addr;
-      }
-      if (coin === "btc") {
-        const chars = "1234589ABFGHJKLMlSTUVWXYZabcdefghijkmnopqrvwxyz";
-        let addr = "1";
-        for (let i = 0; i < 33; ++i) addr += chars[Math.floor(Math.random()*chars.length)];
-        return addr;
-      }
-      if (coin === "eth") {
-        return "0x" + Array.from({length:40},()=>Math.floor(Math.random()*16).toString(16)).join('');
-      }
-      return "0x" + Array.from({length:40},()=>Math.floor(Math.random()*16).toString(16)).join('');
-    }
-    function randomTxId() {
-      return "0x" + Array.from({length:64},()=>Math.floor(Math.random()*16).toString(16)).join('');
-    }
-    function fakeTimeAgo(offset = 0) {
-      const now = Date.now();
-      const date = new Date(now - offset);
-      return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-    }
-    function getCoinById(id) {
-      return COINS.find(c=>c.id===id);
-    }
-    // ------------------ STATE -------------------
-    let wallet = null;
-    function initialWallet() {
-      const w = {
-        masterAddress: randomWalletAddress("bnb"),
-        coins: {},
-        txs: [],
-        rates: COINS.reduce((acc,c)=>{acc[c.id]=c.rate;return acc;},{}),
-      };
-      // All coins start with $97 worth (main coins), others 0
-      COINS.forEach(c=>{
-        w.coins[c.id] = {
-          address: randomWalletAddress(c.id),
-          balance: MAIN_COINS.includes(c.id) ? 97 / c.rate : 0,
-        };
-      });
-      return w;
-    }
-    function updateRates() {
-      COINS.forEach(coin => {
-        let r = wallet.rates[coin.id];
-        if (coin.fluct) {
-          if (coin.id === "bnb") {
-            let direction = Math.random() > 0.5 ? 1 : -1;
-            let change = Math.random() * 2;
-            r += direction * change;
-            if (r < 500) r = 500 + Math.random() * 30;
-            if (r > 650) r = 650 - Math.random() * 30;
-          }
-          if (coin.id === "trx") {
-            let direction = Math.random() > 0.5 ? 1 : -1;
-            let change = Math.random() * 0.01;
-            r += direction * change;
-            if (r < 0.10) r = 0.10 + Math.random() * 0.01;
-            if (r > 0.16) r = 0.16 - Math.random() * 0.01;
-          }
-        }
-        if (coin.id === "usdt" || coin.id === "usdc") {
-          r = 1.0 + (Math.random() - 0.5) * 0.0005;
-        }
-        wallet.rates[coin.id] = parseFloat(r.toFixed(5));
-      });
-      saveData(wallet);
-    }
-    // ------------------ UI FUNCTIONS -------------------
-    function render() {
-      updateRates();
-      let totalUsd = 0;
-      for (const cid in wallet.coins) {
-        const {balance} = wallet.coins[cid];
-        const rate = wallet.rates[cid];
-        totalUsd += balance * rate;
-      }
-      document.getElementById("mainBalance").innerHTML =
-        "$" + totalUsd.toLocaleString(undefined, {maximumFractionDigits:2}) +
-        `<span>USD Total</span>`;
-      document.getElementById("mainWalletAddrText").innerText = wallet.masterAddress;
-      const coinList = document.getElementById("coinList");
-      coinList.innerHTML = "";
-      COINS.forEach((c,idx)=>{
-        const b = wallet.coins[c.id]?.balance || 0;
-        const usd = b * wallet.rates[c.id];
-        const trend = wallet.rates[c.id] > c.rate ? 
-            `<span class="trend" style="color:var(--success)">▲</span>` :
-            wallet.rates[c.id] < c.rate ?
-            `<span class="trend" style="color:var(--danger)">▼</span>` : 
-            `<span class="trend" style="color:gold">●</span>`;
-        const card = document.createElement('div');
-        card.className = 'coin-card' + (c.id===selectedCoinId?' selected':'');
-        card.style.borderLeft = `7px solid ${c.color}`;
-        card.innerHTML = `
-          <span class="coin-logo" style="background:${c.color}">
-            <img src="${c.logo}" width="28" height="28" alt="${c.symbol}"/>
-          </span>
-          <span class="coin-symbol">${c.symbol}</span>
-          <span class="coin-rate">@ $${wallet.rates[c.id].toLocaleString()}</span>
-          <span class="coin-balance">${b.toLocaleString(undefined,{maximumFractionDigits:8})}</span>
-          ${trend}
-        `;
-        card.onclick = function(e){
-          selectedCoinId = c.id;
-          render();
-        };
-        coinList.appendChild(card);
-      });
-      // Coin selector
-      const coinSelect = document.getElementById("coinSelect");
-      coinSelect.innerHTML = "";
-      COINS.forEach(c=>{
-        coinSelect.innerHTML += `<option value="${c.id}" ${c.id===selectedCoinId?"selected":""}>${c.name} (${c.symbol})</option>`;
-      });
-      // TX List
-      const txList = document.getElementById("txList");
-      txList.innerHTML = "";
-      wallet.txs.slice().reverse().forEach(tx=>{
-        const coin = getCoinById(tx.coin);
-        const txCard = document.createElement('div');
-        txCard.className = 'tx-card'+(tx.type==='sent'?' sent':'');
-        txCard.innerHTML = `
-          <span class="tx-coin-logo" style="background:${coin.color}">
-            <img src="${coin.logo}" width="22" height="22" alt=""/>
-          </span>
-          <div class="tx-main">
-            <span class="tx-type">${tx.type==='sent'?'Sent':'Received'} ${coin.symbol}</span>
-            <span class="tx-address">${tx.type==='sent'?'To':'From'}: ${tx.address}</span>
-            <span class="tx-amount">${tx.type==='sent'?'-':''}${
-              parseFloat(tx.amount).toLocaleString(undefined,{maximumFractionDigits:8})
-            } ${coin.symbol} ($${(tx.amount*wallet.rates[coin.id]).toLocaleString(undefined,{maximumFractionDigits:2})})</span>
-            <span class="tx-time">${tx.time}</span>
-            <span class="tx-id">Txn ID: ${tx.id}</span>
+// ========== FIREBASE AUTH/DB LOGIC ==========
+
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const loginForm = document.getElementById("loginForm");
+const loginBtn = document.getElementById("loginBtn");
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+
+const withdrawContainer = document.getElementById("withdrawContainer");
+const noRequests = document.getElementById("noRequests");
+const welcomeText = document.getElementById("welcomeText");
+
+let currentAgent = null;
+
+function getAdminTime() {
+  return new Date().getTime();
+}
+function hoursSince(timestamp) {
+  return (getAdminTime() - timestamp) / (1000 * 60 * 60);
+}
+
+loginBtn.onclick = async () => {
+  const email = emailInput.value;
+  const password = passwordInput.value;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    alert("Login failed: " + error.message);
+  }
+};
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    loginForm.style.display = "none";
+    withdrawContainer.style.display = "block";
+    welcomeText.style.display = "block";
+
+    const agentUid = user.uid;
+    const snap = await get(ref(db, `users/${agentUid}`));
+    const agentData = snap.val();
+    currentAgent = agentData?.fullName || "Agent";
+    welcomeText.innerText = `Welcome ${currentAgent}, Agent`;
+
+    loadAllWithdrawalRequests();
+  } else {
+    loginForm.style.display = "block";
+    withdrawContainer.style.display = "none";
+    welcomeText.style.display = "none";
+  }
+});
+
+async function loadAllWithdrawalRequests() {
+  withdrawContainer.querySelectorAll(".withdraw-box").forEach(e => e.remove());
+  noRequests.style.display = "block";
+
+  const usersRef = ref(db, "users");
+  const snapshot = await get(usersRef);
+
+  if (!snapshot.exists()) return;
+
+  let count = 1;
+  let found = false;
+
+  snapshot.forEach((userSnap) => {
+    const userId = userSnap.key;
+    const userData = userSnap.val();
+    const withdrawals = userData.approvedWithdrawals;
+
+    if (withdrawals) {
+      Object.entries(withdrawals).forEach(([withdrawalId, withdrawal]) => {
+        found = true;
+        const withdrawTime = withdrawal.withdrawalTime || 0;
+        const hoursDiff = hoursSince(withdrawTime);
+        const isExpired = hoursDiff >= 24;
+
+        const box = document.createElement("div");
+        box.className = "withdraw-box";
+        box.setAttribute("data-user", userId);
+
+        const badge = document.createElement('span');
+        badge.className = `status-badge ${isExpired ? "green" : "red"}`;
+        badge.textContent = isExpired ? "OK" : "24h+";
+        box.appendChild(badge);
+
+        const infoHTML = `
+          <div class="withdraw-info">
+            <span><strong>#${count++}</strong> ${userData.fullName} (${userId})</span>
+            <span>Email: ${userData.email}</span>
+            <span>Vestino ID: ${userData.vestinooID}</span>
+            <span>UserCoinpay ID: ${userData.userCoinpayid}</span>
+            <span>Amount: $${parseFloat(withdrawal.amount || 0).toFixed(2)}</span>
+            <span>Wallet: ${withdrawal.walletAddress}</span>
+            <span>Coin: ${withdrawal.coin}</span>
+            <span>Network ID: ${withdrawal.networkId}</span>
+            <span>Deposit: $${userData.deposit || 0}</span>
+            <span>Daily Profit: $${userData.dailyProfit || 0}</span>
+            <span>User Balance: $${userData.userBalance || 0}</span>
+            <span>Level1: ${userData.referralRegisterLevel1 || 0}</span>
+            <span>Level2: ${userData.referralRegisterLevel2 || 0}</span>
+            <span>Requested: ${withdrawal.withdrawalTime ? new Date(withdrawal.withdrawalTime).toLocaleString() : ''}</span>
           </div>
-          <span class="tx-status">${tx.type==='sent'?'Sent':'Received'}</span>
+          <div class="actions">
+            <button class="btn cancel">❌ Cancel</button>
+            <button class="btn approve">✔️ Approve</button>
+          </div>
         `;
-        txList.appendChild(txCard);
+        box.innerHTML += infoHTML;
+        withdrawContainer.appendChild(box);
+        noRequests.style.display = "none";
+
+        box.querySelector(".cancel").onclick = () => handleCancel(userId, withdrawalId, box);
+        box.querySelector(".approve").onclick = () => handleApprove(userId, userData, withdrawal, withdrawalId, box);
       });
     }
-    let selectedCoinId = "bnb";
-    // ----------------- FORM LOGIC ------------------
-    function showMiniAlert(msg) {
-      const el = document.getElementById("miniAlert");
-      el.innerText = msg;
-      el.style.display = "block";
-      setTimeout(()=>el.style.display="none", 2600);
-    }
-    window.copyToClipboard = function(text) {
-      navigator.clipboard.writeText(text);
-      showMiniAlert("Wallet address copied!");
-    }
-    // Add Funds: Each click gives $97 to the FOUR main coins only
-    document.getElementById("addFundsBtn").onclick = function() {
-      MAIN_COINS.forEach(cid=>{
-        wallet.coins[cid].balance += 97 / wallet.rates[cid];
+  });
+
+  if (!found) noRequests.style.display = "block";
+}
+
+// --- PATCHED handleCancel: Sends beautiful email to user when request is canceled ---
+async function handleCancel(userId, withdrawalId, box) {
+  if (!confirm(`${currentAgent}, are you sure you want to delete this request?`)) return;
+  // Fetch user and withdrawal data for email
+  const userSnap = await get(ref(db, `users/${userId}`));
+  const userData = userSnap.val() || {};
+  const withdrawal = userData.approvedWithdrawals?.[withdrawalId] || {};
+
+  try {
+    await remove(ref(db, `users/${userId}/approvedWithdrawals/${withdrawalId}`));
+
+    // --- SEND EMAIL VIA EMAILJS ---
+    const emailId = generateEmailId();
+    try {
+      await sendEmailWithEmailJS({
+        to_name: userData.fullName || "Valued User",
+        to_email: userData.email,
+        subject: "Withdrawal Request Canceled - Vestinoo",
+        html_content: withdrawalFailedTemplate({
+          fullName: userData.fullName || "Valued User",
+          amount: withdrawal.amount || 0,
+          withdrawalTime: withdrawal.withdrawalTime || Date.now(),
+          emailId
+        }),
+        email_id: emailId,
+        extra: {} // Add more fields if your template requires
       });
-      saveData(wallet);
-      render();
-      showMiniAlert("Added $97 to all main coins!");
+    } catch (emailErr) {
+      alert("EmailJS Error: " + (emailErr.message || "Failed to send cancellation email."));
     }
-    // Success PUSH Modal
-    function showPushSuccess({title,desc,details}) {
-      document.getElementById("pushSuccessTitle").innerText = title||"Payment Successful!";
-      document.getElementById("pushSuccessDesc").innerText = desc||"Your payment has been processed and is now complete.";
-      document.getElementById("pushSuccessDetails").innerHTML = details||"";
-      document.getElementById("pushSuccessContainer").style.display = "flex";
-      document.body.style.overflow = "hidden";
+
+    box.remove();
+    checkEmpty();
+    alert("Request deleted and user notified.");
+  } catch (err) {
+    alert("Unexpected error occurred: " + err.message);
+  }
+}
+
+// --- PATCHED handleApprove: Sends beautiful email to user on success ---
+async function handleApprove(userId, userData, withdrawal, withdrawalId, box) {
+  if (!confirm(`${currentAgent}, approve and pay this user?`)) return;
+
+  try {
+    const response = await fetch("https://bonus-gamma.vercel.app/api/payment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": "@haruna66"
+      },
+      body: JSON.stringify({
+        amount: withdrawal.amount,
+        walletAddress: withdrawal.walletAddress,
+        coin: withdrawal.coin,
+        networkId: withdrawal.networkId,
+        userCoinpayid: userData.userCoinpayid
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok || result.error) {
+      alert("Backend error: " + (result.message || "Unknown error"));
+      return;
     }
-    document.getElementById("closePushBtn").onclick = function() {
-      document.getElementById("pushSuccessContainer").style.display = "none";
-      document.body.style.overflow = "";
+
+    const fee = withdrawal.amount * 0.06;
+    const totalDeduct = parseFloat((withdrawal.amount + fee).toFixed(2));
+
+    const updates = {};
+
+    const balance = parseFloat(userData.userBalance || 0);
+    updates[`users/${userId}/userBalance`] = parseFloat((balance - totalDeduct).toFixed(2));
+
+    const successId = `successfullyPayment/${Date.now()}`;
+    updates[`users/${userId}/${successId}`] = {
+      ...withdrawal,
+      withdrawalTime: Date.now()
     };
-    // Send/Receive logic
-    const transferForm = document.getElementById("transferForm");
-    let transferType = "send";
-    document.getElementById("sendBtn").onclick = ()=>{
-      transferType = "send";
-      showTransferForm();
-    };
-    document.getElementById("receiveBtn").onclick = ()=>{
-      transferType = "receive";
-      showTransferForm();
-    };
-    function showTransferForm() {
-      transferForm.style.display = "flex";
-      document.getElementById("coinSelect").value = selectedCoinId;
-      document.getElementById("toAddr").placeholder =
-        transferType === "send" ? "Enter recipient address" : "Enter sender address";
-      document.getElementById("amount").placeholder =
-        transferType === "send" ? "Enter amount to send ($1 minimum)" : "Amount to receive ($1 minimum)";
-      document.getElementById("transferSubmitBtn").innerText =
-        transferType === "send" ? "Send Coin" : "Simulate Receive";
-      document.getElementById("toAddr").value = "";
-      document.getElementById("amount").value = "";
-      document.getElementById("toAddr").focus();
+
+    updates[`users/${userId}/approvedWithdrawals/${withdrawalId}`] = null;
+
+    const oldTotal = parseFloat(userData.totallyWithdraw || 0);
+    updates[`users/${userId}/totallyWithdraw`] = parseFloat((oldTotal + withdrawal.amount).toFixed(2));
+
+    const oldCount = parseInt(userData.countingWithdraw || 0);
+    updates[`users/${userId}/countingWithdraw`] = oldCount + 1;
+
+    await update(ref(db), updates);
+
+    // --- SEND EMAIL VIA EMAILJS ---
+    const emailId = generateEmailId();
+    try {
+      await sendEmailWithEmailJS({
+        to_name: userData.fullName || "Valued User",
+        to_email: userData.email,
+        subject: "Your Withdrawal Was Successful - Vestinoo",
+        html_content: paymentSuccessTemplate({
+          fullName: userData.fullName || "Valued User",
+          amount: withdrawal.amount,
+          walletAddress: withdrawal.walletAddress,
+          withdrawalTime: Date.now(),
+          emailId
+        }),
+        email_id: emailId,
+        extra: {}
+      });
+    } catch (emailErr) {
+      alert("EmailJS Error: " + (emailErr.message || "Failed to send success email."));
     }
-    document.getElementById("transferCancelBtn").onclick = ()=>{
-      transferForm.style.display = "none";
-    }
-    transferForm.onsubmit = function(e) {
-      e.preventDefault();
-      const coinId = document.getElementById("coinSelect").value;
-      const addr = document.getElementById("toAddr").value.trim();
-      const amount = parseFloat(document.getElementById("amount").value);
-      const rate = wallet.rates[coinId];
-      if (!addr || isNaN(amount) || amount < 1) {
-        showMiniAlert("Please enter valid address and at least $1 amount.");
-        return;
-      }
-      const coin = getCoinById(coinId);
-      const coinAmount = amount / rate;
-      if (transferType==="send") {
-        if (wallet.coins[coinId].balance < coinAmount) {
-          showMiniAlert("Insufficient balance!");
-          return;
-        }
-        wallet.coins[coinId].balance -= coinAmount;
-        const txn = {
-          type: "sent",
-          coin: coinId,
-          address: addr,
-          amount: coinAmount,
-          id: randomTxId(),
-          time: fakeTimeAgo(0)
-        };
-        wallet.txs.push(txn);
-        saveData(wallet);
-        render();
-        // Show push container
-        showPushSuccess({
-          title: "Payment Successful!",
-          desc: `Your payment of <b>${parseFloat(coinAmount).toLocaleString(undefined,{maximumFractionDigits:8})} ${coin.symbol}</b> ($${amount}) has been sent successfully.`,
-          details: `
-            <b>Transaction Details</b><br>
-            <b>Status:</b> <span style="color:var(--success);font-weight:600">Confirmed</span><br>
-            <b>To:</b> <span style="color:#1c7bfc">${addr}</span><br>
-            <b>Coin:</b> <span style="color:${coin.color}">${coin.symbol}</span><br>
-            <b>Amount:</b> ${parseFloat(coinAmount).toLocaleString(undefined,{maximumFractionDigits:8})} ${coin.symbol} ($${amount})<br>
-            <b>Txn ID:</b> <span style="word-break:break-all">${txn.id}</span><br>
-            <b>Time:</b> ${txn.time}
-          `
-        });
-      } else {
-        wallet.coins[coinId].balance += coinAmount;
-        const txn = {
-          type: "recv",
-          coin: coinId,
-          address: addr,
-          amount: coinAmount,
-          id: randomTxId(),
-          time: fakeTimeAgo(0)
-        };
-        wallet.txs.push(txn);
-        saveData(wallet);
-        render();
-        showPushSuccess({
-          title: "Payment Received!",
-          desc: `You have received <b>${parseFloat(coinAmount).toLocaleString(undefined,{maximumFractionDigits:8})} ${coin.symbol}</b> ($${amount}) successfully.`,
-          details: `
-            <b>Transaction Details</b><br>
-            <b>Status:</b> <span style="color:var(--success);font-weight:600">Received</span><br>
-            <b>From:</b> <span style="color:#1c7bfc">${addr}</span><br>
-            <b>Coin:</b> <span style="color:${coin.color}">${coin.symbol}</span><br>
-            <b>Amount:</b> ${parseFloat(coinAmount).toLocaleString(undefined,{maximumFractionDigits:8})} ${coin.symbol} ($${amount})<br>
-            <b>Txn ID:</b> <span style="word-break:break-all">${txn.id}</span><br>
-            <b>Time:</b> ${txn.time}
-          `
-        });
-      }
-      transferForm.style.display = "none";
-    };
-    document.getElementById("coinSelect").onchange = function(e){
-      selectedCoinId = e.target.value;
-      render();
-    };
-    // ------------------ INIT -------------------
-    function init() {
-      wallet = loadData();
-      if (!wallet) {
-        wallet = initialWallet();
-        saveData(wallet);
-      }
-      render();
-    }
-    init();
-  </script>
+
+    alert("Payment successfully processed and user notified!");
+    box.remove();
+    checkEmpty();
+
+  } catch (err) {
+    alert("Unexpected error occurred: " + err.message);
+  }
+}
+
+function checkEmpty() {
+  if (withdrawContainer.querySelectorAll(".withdraw-box").length === 0) {
+    noRequests.style.display = "block";
+  }
+}
+
+// ========== END OF SCRIPT ==========
+</script>
 </body>
 </html>
