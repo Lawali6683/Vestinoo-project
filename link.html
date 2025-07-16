@@ -3,146 +3,162 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🎤 Rikodi & Tura Audio</title>
+  <title>Loda Hoto zuwa Imgur</title>
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to right, #dfe9f3, #ffffff);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-    .card {
-      background: #fff;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      text-align: center;
-      width: 90%;
-      max-width: 400px;
-    }
-    button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      margin: 10px 0;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-      width: 100%;
-    }
-    button:disabled {
-      background: #ccc;
-    }
-    .message {
-      margin-top: 15px;
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 14px;
-      word-break: break-word;
-    }
-    .success {
-      background: #d4edda;
-      color: #155724;
-    }
-    .error {
-      background: #f8d7da;
-      color: #721c24;
-    }
-    a {
-      color: #007bff;
-      text-decoration: underline;
-    }
+      body {
+  font-family: sans-serif;
+  background: #f5f5f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+.container {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+input[type="file"] {
+  margin-bottom: 1rem;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  background: #2d89ef;
+  color: white;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+button:hover {
+  background: #1c6cd1;
+}
+
+#uploadedImage {
+  margin-top: 1rem;
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.link-container {
+  display: flex;
+  margin-top: 1rem;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+#imageLink {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.hidden {
+  display: none;
+}
+
+#statusMessage {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>🎤 Rikodi Audio</h2>
-    <button id="startBtn">▶️ Fara Rikodi</button>
-    <button id="stopBtn" disabled>⏹️ Tsaya</button>
-    <button id="sendBtn" disabled>📤 Tura zuwa Chatbot</button>
-    <div id="msgBox" class="message"></div>
+  <div class="container">
+    <h1>📸 Loda Hotonka zuwa Imgur</h1>
+    <input type="file" id="imageInput" accept="image/*" />
+    <button id="uploadBtn">Loda Hoto</button>
+
+    <div id="result" class="hidden">
+      <img id="uploadedImage" alt="Hoton da aka loda" />
+      <div class="link-container">
+        <input type="text" id="imageLink" readonly />
+        <button id="copyBtn">Copy Link 📋</button>
+      </div>
+    </div>
+
+    <p id="statusMessage"></p>
   </div>
 
   <script>
-    let mediaRecorder;
-    let audioChunks = [];
-    let audioBlob;
+      const uploadBtn = document.getElementById("uploadBtn");
+const imageInput = document.getElementById("imageInput");
+const uploadedImage = document.getElementById("uploadedImage");
+const imageLink = document.getElementById("imageLink");
+const result = document.getElementById("result");
+const copyBtn = document.getElementById("copyBtn");
+const statusMessage = document.getElementById("statusMessage");
 
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const sendBtn = document.getElementById("sendBtn");
-    const msgBox = document.getElementById("msgBox");
+uploadBtn.addEventListener("click", async () => {
+  const file = imageInput.files[0];
+  if (!file) {
+    statusMessage.textContent = "Da fari sai ka zabi hoto!";
+    return;
+  }
 
-    startBtn.onclick = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+  statusMessage.textContent = "Ana lodawa...";
 
-        audioChunks = [];
+  let fileName = file.name;
+  const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          sendBtn.disabled = false;
-        };
+  // Idan Imgur baya karɓan format, kara masa sunan da zai dace
+  if (!allowedTypes.includes(file.type)) {
+    const extension = file.name.split(".").pop();
+    fileName = `image_${Date.now()}.${extension || "jpg"}`;
+  }
 
-        mediaRecorder.start();
-        msgBox.textContent = "🔴 Ana rikodi...";
-        msgBox.className = "message";
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-      } catch (err) {
-        msgBox.textContent = "❌ Ba a iya samun izinin makirufo: " + err.message;
-        msgBox.className = "message error";
-      }
-    };
+  const formData = new FormData();
+  formData.append("image", file, fileName);
 
-    stopBtn.onclick = () => {
-      mediaRecorder.stop();
-      msgBox.textContent = "✅ An gama rikodi. Zaka iya tura.";
-      msgBox.className = "message";
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    };
+  try {
+    const response = await fetch("https://api.imgur.com/3/image", {
+      method: "POST",
+      headers: {
+        Authorization: "Client-ID 5acf7eff9c91660"
+      },
+      body: formData
+    });
 
-    sendBtn.onclick = () => {
-      if (!audioBlob) return;
+    const data = await response.json();
 
-      const formData = new FormData();
-      formData.append("id", "audio_" + Date.now());
-      formData.append("type", "audio");
-      formData.append("file", audioBlob, "recorded_audio.webm");
+    if (data.success) {
+      uploadedImage.src = data.data.link;
+      imageLink.value = data.data.link;
+      result.classList.remove("hidden");
+      statusMessage.textContent = "An loda hoton lafiya!";
+    } else {
+      throw new Error(data.data.error || "Loda bai yi nasara ba");
+    }
+  } catch (error) {
+    console.error(error);
+    statusMessage.textContent = "⚠️ An samu matsala wajen loda hoto.";
+  }
+});
 
-      fetch('https://tauraron-wasa-admin.vercel.app/api/getLink', {
-        method: 'POST',
-        headers: {
-          'x-api-key': '@haruna66'
-        },
-        body: formData
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.link) {
-          msgBox.innerHTML = `✅ <strong>Link daga chatbot:</strong><br><a href="${data.link}" target="_blank">${data.link}</a>`;
-          msgBox.className = "message success";
-          sendBtn.disabled = true;
-        } else {
-          msgBox.textContent = "❌ Chatbot bai dawo da link ba: " + (data.error || "Ba a bayyana ba");
-          msgBox.className = "message error";
-        }
-      })
-      .catch(err => {
-        msgBox.textContent = "⚠️ Matsala yayin turawa: " + err.message;
-        msgBox.className = "message error";
-      });
+copyBtn.addEventListener("click", () => {
+  imageLink.select();
+  document.execCommand("copy");
+  copyBtn.textContent = "✅ An Kwafa!";
+  setTimeout(() => {
+    copyBtn.textContent = "Copy Link 📋";
+  }, 2000);
+});
 
-      msgBox.textContent = "⏳ Ana tura zuwa chatbot...";
-      msgBox.className = "message";
-    };
   </script>
 </body>
 </html>
