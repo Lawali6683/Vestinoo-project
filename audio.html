@@ -1,14 +1,106 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ha">
 <head>
     <meta charset="UTF-8">
-    <title>Page title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saurari & Sauke Sauti</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f0f2f5;
+    margin: 0;
+    color: #333;
+}
+
+.container {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+}
+
+h1 {
+    color: #007bff;
+    margin-bottom: 30px;
+    font-size: 1.8em;
+}
+
+#playDownloadBtn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.1em;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+#playDownloadBtn:hover {
+    background-color: #218838;
+}
+
+#playDownloadBtn:active {
+    background-color: #1e7e34;
+    box-shadow: none;
+}
+
+audio {
+    margin-top: 30px;
+    width: 100%;
+    max-width: 400px; /* Optional: limit audio player width */
+}
+    </style>
 </head>
 <body>
-    <audio controls autoplay>
-  <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/amr">
-  Your browser does not support the audio tag.
-</audio>
+    <div class="container">
+        <h1>Danna Kusa Don Saurara da Sauke Sauti</h1>
+        <button id="playDownloadBtn">Saurara & Sauke Sauti</button>
+        <audio id="audioPlayer" controls style="display:none;"></audio>
+    </div>
 
+    <script >
+        document.addEventListener('DOMContentLoaded', () => {
+    const playDownloadBtn = document.getElementById('playDownloadBtn');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const audioUrl = 'https://files.catbox.moe/6umxok.amr'; // URL din sautin ka
+
+    // Saita URL din sautin
+    audioPlayer.src = audioUrl;
+
+    playDownloadBtn.addEventListener('click', () => {
+        // Nuna audio player idan an boye shi
+        audioPlayer.style.display = 'block';
+
+        // Kunna sauti
+        audioPlayer.play()
+            .then(() => {
+                console.log('Sauti ya fara kunnawa.');
+            })
+            .catch(error => {
+                console.error('Kuskure yayin kunna sauti:', error);
+                alert('An kasa kunna sauti. Wata kila mai bincikenka baya goyon bayan kunna sautin ta atomatik ko kuma akwai matsala da fayil din.');
+            });
+
+        // Fara sauke fayil din kai tsaye
+        const link = document.createElement('a');
+        link.href = audioUrl;
+        link.download = 'sautin_ka.amr'; // Sunan fayil din da za'a sauke da shi
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        console.log('Fayil din sauti ya fara saukewa kai tsaye.');
+    });
+});
+    </script>
 </body>
 </html>
