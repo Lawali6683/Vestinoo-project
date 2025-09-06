@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate VAPID Keys</title>
+</head>
+<body>
+  <h2>Click the button to generate VAPID Keys</h2>
+  <button onclick="generate()">Generate</button>
+  <pre id="output"></pre>
+
+  <script type="module">
+    import webpush from "https://cdn.skypack.dev/web-push";
+
+    window.generate = () => {
+      const keys = webpush.generateVAPIDKeys();
+      document.getElementById("output").textContent =
+        "Public Key: " + keys.publicKey + "\n\n" +
+        "Private Key: " + keys.privateKey;
+    };
+  </script>
+</body>
+</html>
