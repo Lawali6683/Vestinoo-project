@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas Manager Admin Panel ⛽</title>
+    <style>
+        :root {
+            --primary-color: #ef4444; /* Red for Gas/Critical */
+            --secondary-color: #22c55e;
+            --background-color: #f3f4f6;
+            --card-background: #ffffff;
+            --text-color: #1f2937;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s;
+            display: block;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        #status-message {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .loading {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .results-card {
+            background-color: var(--card-background);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+        th {
+            background-color: #fef2f2;
+            color: var(--primary-color);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #6b7280;
+        }
+        .issue {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        .bnb-low {
+             color: #f97316; /* Orange */
+             font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gas Manager ⚠️ Admin Panel</h1>
+        
+        <button id="fetchIssuesBtn">Binciko Users Masu Matsalar Gas (BNB Fee)</button>
+
+        <div id="status-message" style="display:none;"></div>
+        <div class="loading" id="loader"></div>
+
+        <div class="results-card">
+            <h2>Users Masu Token Amma Babu Gas (BNB)</h2>
+            <table id="issuesTable">
+                <thead>
+                    <tr>
+                        <th>UID/CoinPayID</th>
+                        <th>Address</th>
+                        <th>Coin</th>
+                        <th>Token Balance ($)</th>
+                        <th>BNB Balance</th>
+                        <th>BNB Needed (Approx)</th>
+                        <th>Issue</th>
+                    </tr>
+                </thead>
+                <tbody id="issuesBody">
+                    <tr><td colspan="7" class="no-data">Danna button sama domin bincikawa.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('fetchIssuesBtn').addEventListener('click', fetchGasIssues);
+
+        async function fetchGasIssues() {
+            const btn = document.getElementById('fetchIssuesBtn');
+            const statusDiv = document.getElementById('status-message');
+            const loader = document.getElementById('loader');
+            const issuesBody = document.getElementById('issuesBody');
+
+            btn.disabled = true;
+            loader.style.display = 'block';
+            statusDiv.style.display = 'none';
+            issuesBody.innerHTML = '<tr><td colspan="7" class="no-data">Bincike yana gudana...</td></tr>';
+
+            const API_URL = 'https://bonus-gamma.vercel.app/gasManager';
+            const API_KEY = '@haruna66'; 
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY 
+                    },
+                    body: JSON.stringify({ action: 'getGasIssues' }) // Sabon yanayi na request 
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Request failed with unknown error.');
+                }
+
+                displayGasIssues(data.gasIssues);
+                statusDiv.innerText = `An gano users masu matsalar gas guda ${data.gasIssues.length}.`;
+                statusDiv.style.backgroundColor = data.gasIssues.length > 0 ? '#fef3c7' : '#d1fae5'; 
+                statusDiv.style.color = data.gasIssues.length > 0 ? '#b45309' : '#065f46';
+                statusDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error fetching gas issues:', error);
+                issuesBody.innerHTML = '<tr><td colspan="7" class="no-data" style="color:red;">Error: ' + error.message + '</td></tr>';
+                statusDiv.innerText = `Kuskure: ${error.message}`;
+                statusDiv.style.backgroundColor = '#fee2e2'; 
+                statusDiv.style.color = '#991b1b';
+                statusDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+
+        function displayGasIssues(issues) {
+            const issuesBody = document.getElementById('issuesBody');
+            issuesBody.innerHTML = ''; 
+
+            if (issues.length === 0) {
+                issuesBody.innerHTML = '<tr><td colspan="7" class="no-data">Ba a gano user masu matsalar gas ba. Dukkan user suna da isasshen fee.</td></tr>';
+                return;
+            }
+
+            issues.forEach(issue => {
+                const row = issuesBody.insertRow();
+                row.insertCell().textContent = issue.uid.substring(0, 8) + '...' + (issue.userCoinpayid ? ` (${issue.userCoinpayid})` : '');
+                row.insertCell().textContent = issue.walletAddress.substring(0, 10) + '...';
+                row.insertCell().textContent = issue.coin;
+                row.insertCell().textContent = `$${parseFloat(issue.tokenBalance).toFixed(4)}`; 
+                row.insertCell().textContent = `${parseFloat(issue.bnbBalance).toFixed(6)} BNB`;
+                row.insertCell().textContent = `${parseFloat(issue.gasNeeded).toFixed(6)} BNB`;
+                row.insertCell().innerHTML = `<span class="issue">${issue.issue}</span>`;
+            });
+        }
+    </script>
+</body>
+</html>
