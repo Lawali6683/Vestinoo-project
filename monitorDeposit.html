@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Deposits Admin Panel 💰</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --secondary-color: #10b981;
+            --background-color: #f3f4f6;
+            --card-background: #ffffff;
+            --text-color: #1f2937;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s;
+            display: block;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #059669;
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        #status-message {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .loading {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .results-card {
+            background-color: var(--card-background);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background-color: #eff6ff;
+            color: var(--primary-color);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Deposit Monitoring 🔎 Admin Panel</h1>
+        
+        <button id="fetchDepositsBtn">Binciko Masu Saka Kuɗi (Deposits)</button>
+
+        <div id="status-message" style="display:none;"></div>
+        <div class="loading" id="loader"></div>
+
+        <div class="results-card">
+            <h2>Jerin Users Masu Kuɗi ($)</h2>
+            <table id="depositsTable">
+                <thead>
+                    <tr>
+                        <th>UID/CoinPayID</th>
+                        <th>Address</th>
+                        <th>Coin</th>
+                        <th>Amount ($)</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="depositsBody">
+                    <tr><td colspan="5" class="no-data">Danna button sama domin bincikawa.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('fetchDepositsBtn').addEventListener('click', fetchDeposits);
+
+        async function fetchDeposits() {
+            const btn = document.getElementById('fetchDepositsBtn');
+            const statusDiv = document.getElementById('status-message');
+            const loader = document.getElementById('loader');
+            const depositsBody = document.getElementById('depositsBody');
+
+            btn.disabled = true;
+            loader.style.display = 'block';
+            statusDiv.style.display = 'none';
+            depositsBody.innerHTML = '<tr><td colspan="5" class="no-data">Bincike yana gudana...</td></tr>';
+
+            const API_URL = 'https://bonus-gamma.vercel.app/monitorDeposit';
+            const API_KEY = '@haruna66'; 
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY 
+                    },
+                    body: JSON.stringify({ action: 'getDeposits' }) // Wannan sabon yanayi ne na request
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Request failed with unknown error.');
+                }
+
+                displayDeposits(data.deposits);
+                statusDiv.innerText = `An gano deposits guda ${data.deposits.length}.`;
+                statusDiv.style.backgroundColor = '#d1fae5'; // Green for success
+                statusDiv.style.color = '#065f46';
+                statusDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error fetching deposits:', error);
+                depositsBody.innerHTML = '<tr><td colspan="5" class="no-data" style="color:red;">Error: ' + error.message + '</td></tr>';
+                statusDiv.innerText = `Kuskure: ${error.message}`;
+                statusDiv.style.backgroundColor = '#fee2e2'; // Red for error
+                statusDiv.style.color = '#991b1b';
+                statusDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+
+        function displayDeposits(deposits) {
+            const depositsBody = document.getElementById('depositsBody');
+            depositsBody.innerHTML = ''; 
+
+            if (deposits.length === 0) {
+                depositsBody.innerHTML = '<tr><td colspan="5" class="no-data">Ba a gano user da suka saka kuɗi ba.</td></tr>';
+                return;
+            }
+
+            deposits.forEach(dep => {
+                const row = depositsBody.insertRow();
+                const idCell = row.insertCell();
+                const addressCell = row.insertCell();
+                const coinCell = row.insertCell();
+                const amountCell = row.insertCell();
+                const statusCell = row.insertCell();
+
+                idCell.textContent = dep.uid.substring(0, 8) + '...' + (dep.userCoinpayid ? ` (${dep.userCoinpayid})` : '');
+                addressCell.textContent = dep.walletAddress.substring(0, 10) + '...';
+                coinCell.textContent = dep.coin;
+                // An nuna kudi da alamar $ kamar yadda aka buƙata
+                amountCell.textContent = `$${parseFloat(dep.amount).toFixed(4)}`; 
+                statusCell.textContent = dep.status;
+                
+                // Styling a ɗan bambanta
+                statusCell.style.fontWeight = 'bold';
+                statusCell.style.color = '#f59e0b'; // Amber for pending
+            });
+        }
+    </script>
+</body>
+</html>
