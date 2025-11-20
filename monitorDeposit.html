@@ -150,7 +150,7 @@
             statusDiv.style.display = 'none';
             depositsBody.innerHTML = '<tr><td colspan="5" class="no-data">Bincike yana gudana...</td></tr>';
 
-            const API_URL = 'https://bonus-gamma.vercel.app/monitorDeposit';
+            const API_URL = 'https://bonus-gamma.vercel.app/monitorDeposits';
             const API_KEY = '@haruna66'; 
 
             try {
@@ -160,7 +160,7 @@
                         'Content-Type': 'application/json',
                         'x-api-key': API_KEY 
                     },
-                    body: JSON.stringify({ action: 'getDeposits' }) // Wannan sabon yanayi ne na request
+                    body: JSON.stringify({ action: 'getDeposits' }) 
                 });
 
                 const data = await response.json();
@@ -171,7 +171,7 @@
 
                 displayDeposits(data.deposits);
                 statusDiv.innerText = `An gano deposits guda ${data.deposits.length}.`;
-                statusDiv.style.backgroundColor = '#d1fae5'; // Green for success
+                statusDiv.style.backgroundColor = '#d1fae5'; 
                 statusDiv.style.color = '#065f46';
                 statusDiv.style.display = 'block';
 
@@ -179,7 +179,7 @@
                 console.error('Error fetching deposits:', error);
                 depositsBody.innerHTML = '<tr><td colspan="5" class="no-data" style="color:red;">Error: ' + error.message + '</td></tr>';
                 statusDiv.innerText = `Kuskure: ${error.message}`;
-                statusDiv.style.backgroundColor = '#fee2e2'; // Red for error
+                statusDiv.style.backgroundColor = '#fee2e2';
                 statusDiv.style.color = '#991b1b';
                 statusDiv.style.display = 'block';
             } finally {
@@ -208,13 +208,12 @@
                 idCell.textContent = dep.uid.substring(0, 8) + '...' + (dep.userCoinpayid ? ` (${dep.userCoinpayid})` : '');
                 addressCell.textContent = dep.walletAddress.substring(0, 10) + '...';
                 coinCell.textContent = dep.coin;
-                // An nuna kudi da alamar $ kamar yadda aka buƙata
+              
                 amountCell.textContent = `$${parseFloat(dep.amount).toFixed(4)}`; 
                 statusCell.textContent = dep.status;
-                
-                // Styling a ɗan bambanta
+                                
                 statusCell.style.fontWeight = 'bold';
-                statusCell.style.color = '#f59e0b'; // Amber for pending
+                statusCell.style.color = '#f59e0b'; 
             });
         }
     </script>
