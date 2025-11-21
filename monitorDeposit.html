@@ -3,219 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor Deposits Admin Panel 💰</title>
+    <title>Deposit Monitor Admin</title>
     <style>
         :root {
-            --primary-color: #3b82f6;
-            --secondary-color: #10b981;
-            --background-color: #f3f4f6;
-            --card-background: #ffffff;
-            --text-color: #1f2937;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #dee2e6;
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-color);
             margin: 0;
             padding: 20px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
+            background-color: var(--bg-color);
+            color: #343a40;
         }
         .container {
-            width: 100%;
             max-width: 1000px;
+            margin: 0 auto;
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         h1 {
             color: var(--primary-color);
             text-align: center;
             margin-bottom: 30px;
         }
-        button {
-            background-color: var(--secondary-color);
-            color: white;
+        .action-area {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        #monitorBtn {
             padding: 12px 25px;
+            font-size: 18px;
+            background-color: var(--primary-color);
+            color: white;
             border: none;
             border-radius: 8px;
-            font-size: 16px;
             cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s;
-            display: block;
-            width: 100%;
-            margin-bottom: 20px;
+            transition: background-color 0.3s ease;
         }
-        button:hover {
-            background-color: #059669;
-            transform: translateY(-1px);
-        }
-        button:disabled {
-            background-color: #9ca3af;
+        #monitorBtn:disabled {
+            background-color: #a0c3e8;
             cursor: not-allowed;
         }
-        #status-message {
+        .status-message {
             text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 6px;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
             font-weight: bold;
-        }
-        .loading {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary-color);
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
             display: none;
-            margin: 0 auto 20px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .results-card {
-            background-color: var(--card-background);
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-        }
-        table {
+        .status-success { background-color: #d4edda; color: var(--success-color); }
+        .status-error { background-color: #f8d7da; color: var(--danger-color); }
+        #resultsTable {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
+            margin-top: 20px;
         }
-        th, td {
-            text-align: left;
+        #resultsTable th, #resultsTable td {
             padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
         }
-        th {
-            background-color: #eff6ff;
-            color: var(--primary-color);
+        #resultsTable th {
+            background-color: var(--primary-color);
+            color: white;
             font-weight: 600;
-            text-transform: uppercase;
-            font-size: 14px;
         }
-        tr:hover {
-            background-color: #f9fafb;
-        }
-        .no-data {
+        #resultsTable tbody tr:nth-child(even) { background-color: #f2f2f2; }
+        .empty-state {
             text-align: center;
-            padding: 20px;
-            font-style: italic;
-            color: #6b7280;
+            padding: 40px;
+            border: 2px dashed #6c757d;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .status-tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .status-pending { background-color: #fff3cd; color: var(--warning-color); }
+        .status-withdrawn { background-color: #d4edda; color: var(--success-color); }
+
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            #resultsTable thead { display: none; }
+            #resultsTable, #resultsTable tbody, #resultsTable tr, #resultsTable td { display: block; width: 100%; }
+            #resultsTable tr { margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: 8px; }
+            #resultsTable td {
+                text-align: right;
+                padding-left: 50%;
+                position: relative;
+                border: none;
+            }
+            #resultsTable td::before {
+                content: attr(data-label);
+                position: absolute;
+                left: 0;
+                width: 50%;
+                padding-left: 12px;
+                font-weight: bold;
+                text-align: left;
+                color: var(--primary-color);
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Deposit Monitoring 🔎 Admin Panel</h1>
-        
-        <button id="fetchDepositsBtn">Binciko Masu Saka Kuɗi (Deposits)</button>
 
-        <div id="status-message" style="display:none;"></div>
-        <div class="loading" id="loader"></div>
-
-        <div class="results-card">
-            <h2>Jerin Users Masu Kuɗi ($)</h2>
-            <table id="depositsTable">
-                <thead>
-                    <tr>
-                        <th>UID/CoinPayID</th>
-                        <th>Address</th>
-                        <th>Coin</th>
-                        <th>Amount ($)</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="depositsBody">
-                    <tr><td colspan="5" class="no-data">Danna button sama domin bincikawa.</td></tr>
-                </tbody>
-            </table>
-        </div>
+<div class="container">
+    <h1>💰 Deposit Monitoring Dashboard (Admin)</h1>
+    <p>Click the button to check for new deposits and view status of withdrawals.</p>
+    <div class="action-area">
+        <button id="monitorBtn">Check For New Deposits</button>
     </div>
 
-    <script>
-        document.getElementById('fetchDepositsBtn').addEventListener('click', fetchDeposits);
+    <div id="status" class="status-message"></div>
+    
+    <div id="emptyState" class="empty-state" style="display: block;">
+        <p>No new deposits found since last check.</p>
+    </div>
 
-        async function fetchDeposits() {
-            const btn = document.getElementById('fetchDepositsBtn');
-            const statusDiv = document.getElementById('status-message');
-            const loader = document.getElementById('loader');
-            const depositsBody = document.getElementById('depositsBody');
+    <table id="resultsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Coin</th>
+                <th>Amount ($)</th>
+                <th>Wallet Address</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+</div>
 
-            btn.disabled = true;
-            loader.style.display = 'block';
+<script>
+    const MONITOR_API_URL = 'https://bonus-gamma.vercel.app/monitorDeposits';
+    const API_KEY = '@haruna66';
+    const monitorBtn = document.getElementById('monitorBtn');
+    const statusDiv = document.getElementById('status');
+    const resultsTable = document.getElementById('resultsTable');
+    const resultsBody = resultsTable.querySelector('tbody');
+    const emptyState = document.getElementById('emptyState');
+
+    monitorBtn.addEventListener('click', runDepositMonitor);
+
+    function displayStatus(message, isSuccess) {
+        statusDiv.textContent = message;
+        statusDiv.className = 'status-message';
+        statusDiv.classList.add(isSuccess ? 'status-success' : 'status-error');
+        statusDiv.style.display = 'block';
+        setTimeout(() => {
             statusDiv.style.display = 'none';
-            depositsBody.innerHTML = '<tr><td colspan="5" class="no-data">Bincike yana gudana...</td></tr>';
+        }, 8000);
+    }
 
-            const API_URL = 'https://bonus-gamma.vercel.app/monitorDeposits';
-            const API_KEY = '@haruna66'; 
+    function displayResults(deposits) {
+        resultsBody.innerHTML = '';
+        if (!deposits || deposits.length === 0) {
+            resultsTable.style.display = 'none';
+            emptyState.style.display = 'block';
+            return;
+        }
 
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': API_KEY 
-                    },
-                    body: JSON.stringify({ action: 'getDeposits' }) 
-                });
+        deposits.forEach(item => {
+            const row = resultsBody.insertRow();
+            
+            const statusClass = item.isWithdrawn ? 'status-withdrawn' : 'status-pending';
+            const statusText = item.isWithdrawn ? 'Successfully Withdrawn' : 'Pending Withdrawal';
 
-                const data = await response.json();
+            row.insertCell(0).setAttribute('data-label', 'User ID');
+            row.cells[0].textContent = item.uid;
+            
+            row.insertCell(1).setAttribute('data-label', 'Coin');
+            row.cells[1].textContent = item.coin;
+            
+            row.insertCell(2).setAttribute('data-label', 'Amount ($)');
+            row.cells[2].textContent = `$${parseFloat(item.amount).toFixed(4)}`;
+            
+            row.insertCell(3).setAttribute('data-label', 'Wallet Address');
+            row.cells[3].textContent = item.walletAddress.substring(0, 8) + '...' + item.walletAddress.substring(item.walletAddress.length - 8);
 
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'Request failed with unknown error.');
+            row.insertCell(4).setAttribute('data-label', 'Status');
+            row.cells[4].innerHTML = `<span class="status-tag ${statusClass}">${statusText}</span>`;
+        });
+
+        resultsTable.style.display = 'table';
+        emptyState.style.display = 'none';
+    }
+
+    async function runDepositMonitor() {
+        monitorBtn.disabled = true;
+        monitorBtn.textContent = 'Checking Deposits...';
+        
+        try {
+            // Add 'source=admin' to the query to instruct the backend to return JSON data
+            const response = await fetch(`${MONITOR_API_URL}?key=${API_KEY}&source=admin`, {
+                method: 'GET',
+                headers: {
+                    'x-api-key': API_KEY,
+                    'Content-Type': 'application/json'
                 }
-
-                displayDeposits(data.deposits);
-                statusDiv.innerText = `An gano deposits guda ${data.deposits.length}.`;
-                statusDiv.style.backgroundColor = '#d1fae5'; 
-                statusDiv.style.color = '#065f46';
-                statusDiv.style.display = 'block';
-
-            } catch (error) {
-                console.error('Error fetching deposits:', error);
-                depositsBody.innerHTML = '<tr><td colspan="5" class="no-data" style="color:red;">Error: ' + error.message + '</td></tr>';
-                statusDiv.innerText = `Kuskure: ${error.message}`;
-                statusDiv.style.backgroundColor = '#fee2e2';
-                statusDiv.style.color = '#991b1b';
-                statusDiv.style.display = 'block';
-            } finally {
-                btn.disabled = false;
-                loader.style.display = 'none';
-            }
-        }
-
-        function displayDeposits(deposits) {
-            const depositsBody = document.getElementById('depositsBody');
-            depositsBody.innerHTML = ''; 
-
-            if (deposits.length === 0) {
-                depositsBody.innerHTML = '<tr><td colspan="5" class="no-data">Ba a gano user da suka saka kuɗi ba.</td></tr>';
-                return;
-            }
-
-            deposits.forEach(dep => {
-                const row = depositsBody.insertRow();
-                const idCell = row.insertCell();
-                const addressCell = row.insertCell();
-                const coinCell = row.insertCell();
-                const amountCell = row.insertCell();
-                const statusCell = row.insertCell();
-
-                idCell.textContent = dep.uid.substring(0, 8) + '...' + (dep.userCoinpayid ? ` (${dep.userCoinpayid})` : '');
-                addressCell.textContent = dep.walletAddress.substring(0, 10) + '...';
-                coinCell.textContent = dep.coin;
-              
-                amountCell.textContent = `$${parseFloat(dep.amount).toFixed(4)}`; 
-                statusCell.textContent = dep.status;
-                                
-                statusCell.style.fontWeight = 'bold';
-                statusCell.style.color = '#f59e0b'; 
             });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // The returned deposits are those found *since the last successful run*
+                displayStatus(`✅ Check Complete. ${data.deposits.length} new deposits found.`, true);
+                displayResults(data.deposits); 
+            } else {
+                displayStatus(`❌ Request Failed: ${data.error || 'Unknown error'}`, false);
+                displayResults([]);
+            }
+        } catch (error) {
+            displayStatus(`❌ Failed to request API: ${error.message}. Check network connection.`, false);
+            displayResults([]);
+        } finally {
+            monitorBtn.disabled = false;
+            monitorBtn.textContent = 'Check For New Deposits';
         }
-    </script>
+    }
+    
+    // Run once on load to show current status (if any are pending from a previous run)
+    runDepositMonitor();
+</script>
+
 </body>
 </html>
