@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ha">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mai Samar da QR Code</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --primary: #0f766e;
+  --primary-text: #ffffff;
+  --primary-soft: #ccfbf1;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1220;
+    --card: #131c2e;
+    --text: #e8eef8;
+    --muted: #93a3b8;
+    --line: #243049;
+    --primary: #2dd4bf;
+    --primary-text: #05211e;
+    --primary-soft: #0f2e2b;
+    --danger: #fca5a5;
+    --danger-soft: #3b1414;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+  --card: #131c2e;
+  --text: #e8eef8;
+  --muted: #93a3b8;
+  --line: #243049;
+  --primary: #2dd4bf;
+  --primary-text: #05211e;
+  --primary-soft: #0f2e2b;
+  --danger: #fca5a5;
+  --danger-soft: #3b1414;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--primary);
+  color: var(--primary-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  letter-spacing: -0.02em;
+}
+header p {
+  margin: 0;
+  color: var(--muted);
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+@media (min-width: 820px) {
+  .grid { grid-template-columns: 1.1fr 0.9fr; align-items: start; }
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+}
+.field { margin-bottom: 18px; }
+input[type="text"], input[type="url"], select {
+  width: 100%;
+  padding: 13px 14px;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  outline: none;
+  font-family: inherit;
+}
+input[type="text"]:focus, input[type="url"]:focus, select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.colors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.color-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+.color-box input {
+  width: 38px;
+  height: 38px;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+.color-box span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.error {
+  display: none;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.error.show { display: block; }
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: transform 0.08s ease, opacity 0.2s ease;
+}
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  width: 100%;
+}
+.btn-ghost {
+  background: var(--bg);
+  color: var(--text);
+  border: 1.5px solid var(--line);
+}
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.stage {
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  border: 1.5px dashed var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg);
+}
+.stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+  image-rendering: pixelated;
+}
+.stage.ready { border-style: solid; }
+.stage.ready img { display: block; }
+.placeholder {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+  font-size: 0.9rem;
+}
+.placeholder svg { opacity: 0.5; margin-bottom: 8px; }
+.stage.ready .placeholder { display: none; }
+.target {
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  word-break: break-all;
+  min-height: 1.3em;
+}
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.actions .full { grid-column: 1 / -1; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%) translateY(20px);
+  background: var(--text);
+  color: var(--bg);
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s ease;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.tips {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .tips { grid-template-columns: repeat(3, 1fr); }
+}
+.tip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.tip b {
+  display: block;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
+    </div>
+    <h1>Mai Samar da QR Code</h1>
+    <p>Saka link, ka sami QR code mai tsabta wanda za a iya saukewa nan take.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-label="Saitunan QR">
+      <div class="field">
+        <label for="link">Link ko rubutu</label>
+        <input id="link" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="misali.com">
+        <div class="hint">Idan ba ka saka https:// ba, za a ƙara shi kai tsaye.</div>
+      </div>
+
+      <div class="row field">
+        <div>
+          <label for="size">Girman hoto</label>
+          <select id="size">
+            <option value="512">Matsakaici (512 px)</option>
+            <option value="1024" selected>Babba (1024 px)</option>
+            <option value="2048">Mafi girma (2048 px)</option>
+          </select>
+        </div>
+        <div>
+          <label for="level">Ƙarfin karantawa</label>
+          <select id="level">
+            <option value="L">Na yau da kullum</option>
+            <option value="M" selected>Mai kyau</option>
+            <option value="Q">Mai ƙarfi</option>
+            <option value="H">Mafi ƙarfi</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="colors field">
+        <div>
+          <label for="fg">Launin QR</label>
+          <div class="color-box"><input id="fg" type="color" value="#000000"><span id="fgv">#000000</span></div>
+        </div>
+        <div>
+          <label for="bg">Launin baya</label>
+          <div class="color-box"><input id="bg" type="color" value="#ffffff"><span id="bgv">#ffffff</span></div>
+        </div>
+      </div>
+
+      <div id="error" class="error" role="alert"></div>
+
+      <button id="generate" class="btn-primary" type="button">Samar da QR Code</button>
+    </section>
+
+    <section class="card" aria-label="Sakamako">
+      <div class="preview">
+        <div id="stage" class="stage">
+          <div class="placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
+            <div>QR code zai bayyana a nan</div>
+          </div>
+          <img id="preview" alt="QR code">
+        </div>
+        <div id="target" class="target"></div>
+        <div class="actions">
+          <button id="dlPng" class="btn-primary" type="button" disabled>Sauke PNG</button>
+          <button id="dlSvg" class="btn-ghost" type="button" disabled>Sauke SVG</button>
+          <button id="copy" class="btn-ghost full" type="button" disabled>Kwafi link</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="tips">
+    <div class="tip"><b>Mai sauƙi</b>Saka link, danna maballin, sai ka sauke.</div>
+    <div class="tip"><b>Mai inganci</b>PNG don amfani kai tsaye, SVG don bugu mai girma ba tare da ya lalace ba.</div>
+    <div class="tip"><b>Shawara</b>Yi amfani da launi mai duhu a kan baya mai haske don a karanta shi cikin sauƙi.</div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var linkEl = $("link");
+  var sizeEl = $("size");
+  var levelEl = $("level");
+  var fgEl = $("fg");
+  var bgEl = $("bg");
+  var errEl = $("error");
+  var stage = $("stage");
+  var previewEl = $("preview");
+  var targetEl = $("target");
+  var btnGen = $("generate");
+  var btnPng = $("dlPng");
+  var btnSvg = $("dlSvg");
+  var btnCopy = $("copy");
+  var toastEl = $("toast");
+  var current = null;
+  var timer = null;
+  var toastTimer = null;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2400);
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.classList.add("show");
+  }
+
+  function clearError() {
+    errEl.textContent = "";
+    errEl.classList.remove("show");
+  }
+
+  function setReady(on) {
+    btnPng.disabled = !on;
+    btnSvg.disabled = !on;
+    btnCopy.disabled = !on;
+    stage.classList.toggle("ready", on);
+    if (!on) {
+      previewEl.removeAttribute("src");
+      targetEl.textContent = "";
+    }
+  }
+
+  function normalize(raw) {
+    var v = (raw || "").trim();
+    if (!v) return "";
+    if (/^[a-z][a-z0-9+.\-]*:/i.test(v) && !/^[^\s\/]+\.[^\s\/]+:\d+/.test(v)) return v;
+    if (/^\/\//.test(v)) return "https:" + v;
+    return "https://" + v;
+  }
+
+  function slug(text) {
+    var s = text.replace(/^[a-z]+:\/\//i, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    return (s || "qr-code").slice(0, 40);
+  }
+
+  function build(text, level) {
+    var qr = qrcode(0, level);
+    qr.addData(text, "Byte");
+    qr.make();
+    return qr;
+  }
+
+  function drawCanvas(qr, px, fg, bg) {
+    var count = qr.getModuleCount();
+    var quiet = 4;
+    var total = count + quiet * 2;
+    var cell = Math.max(1, Math.floor(px / total));
+    var side = cell * total;
+    var canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, side, side);
+    ctx.fillStyle = fg;
+    for (var r = 0; r < count; r++) {
+      for (var c = 0; c < count; c++) {
+        if (qr.isDark(r, c)) {
+          ctx.fillRect((c + quiet) * cell, (r + quiet) * cell, cell, cell);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  function buildSvg(qr, fg, bg) {
+    var count = qr.getModuleCount();
+    var quiet = 4;
+    var total = count + quiet * 2;
+    var d = "";
+    for (var r = 0; r < count; r++) {
+      for (var c = 0; c < count; c++) {
+        if (qr.isDark(r, c)) {
+          d += "M" + (c + quiet) + " " + (r + quiet) + "h1v1h-1z";
+        }
+      }
+    }
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + " " + total + '" width="1024" height="1024" shape-rendering="crispEdges">' +
+      '<rect width="' + total + '" height="' + total + '" fill="' + bg + '"/>' +
+      '<path d="' + d + '" fill="' + fg + '"/></svg>';
+  }
+
+  function generate(showEmptyError) {
+    clearError();
+    var raw = linkEl.value;
+    var text = normalize(raw);
+    if (!text) {
+      setReady(false);
+      current = null;
+      if (showEmptyError) showError("Don Allah saka link ko rubutu tukuna.");
+      return;
+    }
+    if (typeof qrcode !== "function") {
+      setReady(false);
+      showError("Ba a iya loda tsarin QR ba. Duba intanet ɗinka, sannan ka sake buɗe shafin.");
+      return;
+    }
+    try {
+      var qr = build(text, levelEl.value);
+      var canvas = drawCanvas(qr, parseInt(sizeEl.value, 10), fgEl.value, bgEl.value);
+      current = {
+        text: text,
+        qr: qr,
+        canvas: canvas,
+        fg: fgEl.value,
+        bg: bgEl.value,
+        name: slug(text)
+      };
+      previewEl.src = canvas.toDataURL("image/png");
+      targetEl.textContent = text;
+      setReady(true);
+    } catch (e) {
+      setReady(false);
+      current = null;
+      showError("Rubutun ya yi tsayi da yawa ko kuma akwai matsala. Rage tsawon link ɗin, ko zaɓi ƙarfin karantawa na yau da kullum.");
+    }
+  }
+
+  function triggerDownload(filename, blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    toast("An fara saukewa");
+  }
+
+  function saveFile(filename, data) {
+    var blob = data instanceof Blob ? data : new Blob([data], { type: "image/svg+xml" });
+    try {
+      triggerDownload(filename, blob);
+    } catch (e) {
+      toast("Saukewa bai yi nasara ba. Danna hoton na tsawon lokaci ka adana shi.");
+    }
+  }
+
+  function downloadPng() {
+    if (!current) return;
+    var name = current.name;
+    current.canvas.toBlob(function (blob) {
+      if (!blob) {
+        toast("Saukewa bai yi nasara ba.");
+        return;
+      }
+      saveFile("qr-" + name + ".png", blob);
+    }, "image/png");
+  }
+
+  function downloadSvg() {
+    if (!current) return;
+    var svg = buildSvg(current.qr, current.fg, current.bg);
+    saveFile("qr-" + current.name + ".svg", svg);
+  }
+
+  function copyLink() {
+    if (!current) return;
+    var text = current.text;
+    var done = function () { toast("An kwafi link ɗin"); };
+    var fallback = function () {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? "An kwafi link ɗin" : "Ba a iya kwafi ba");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(function () { generate(false); }, 350);
+  }
+
+  linkEl.addEventListener("input", schedule);
+  linkEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      clearTimeout(timer);
+      generate(true);
+    }
+  });
+  sizeEl.addEventListener("change", function () { generate(false); });
+  levelEl.addEventListener("change", function () { generate(false); });
+  fgEl.addEventListener("input", function () {
+    $("fgv").textContent = fgEl.value;
+    schedule();
+  });
+  bgEl.addEventListener("input", function () {
+    $("bgv").textContent = bgEl.value;
+    schedule();
+  });
+  btnGen.addEventListener("click", function () {
+    clearTimeout(timer);
+    generate(true);
+  });
+  btnPng.addEventListener("click", downloadPng);
+  btnSvg.addEventListener("click", downloadSvg);
+  btnCopy.addEventListener("click", copyLink);
+
+  setReady(false);
+})();
+</script>
+</body>
+</html>
